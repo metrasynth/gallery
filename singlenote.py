@@ -1,6 +1,5 @@
 from s4ils import *
 
-
 s = Session()
 
 with s[INIT]:
@@ -24,7 +23,6 @@ with s[4, 0]:
     s.note1.off() | s
     s.note2.off() | s
     s.note3.off() | s
-
 
 if __name__ == '__main__':
     play(s)
