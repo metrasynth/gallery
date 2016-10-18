@@ -6,9 +6,9 @@ with s[INIT]:
     s.engine = c.Engine() | s
     s.fm = s.engine.new_module(rv.m.Fm) | s
     s.engine.output << s.fm | s
-    s.track1 = s.engine.track(0)
-    s.track2 = s.engine.track(1)
-    s.track3 = s.engine.track(2)
+    s.track1 = s.engine.track(1)
+    s.track2 = s.engine.track(2)
+    s.track3 = s.engine.track(3)
 
 with s[0, 0]:
     s.note1 = s.fm.note_on(n.C4) | s.track1 | s
