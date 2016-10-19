@@ -11,13 +11,13 @@ with s[INIT]:
     s.track3 = s.engine.track(3)
 
 with s[0, 0]:
-    s.note1 = s.fm.note_on(n.C4) | s.track1 | s
+    s.note1 = s.fm.on(n.C4) | s.track1 | s
 
 with s[1, 0]:
-    s.note2 = s.fm.note_on(n.E4) | s.track2 | s
+    s.note2 = s.fm.on(n.E4) | s.track2 | s
 
 with s[2, 0]:
-    s.note3 = s.fm.note_on(n.G4) | s.track3 | s
+    s.note3 = s.fm.on(n.G4) | s.track3 | s
 
 with s[4, 0]:
     s.note1.off() | s
