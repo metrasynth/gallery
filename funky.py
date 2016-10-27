@@ -1,3 +1,4 @@
+import begin
 from s4ils import *
 
 from drumloop1 import bassdrummer, snaredrummer, asciidrummer
@@ -98,6 +99,7 @@ with s[64, 3]:
     floomster(0) | s
 
 
-if __name__ == '__main__':
-    play(s, bpm=115, shuffle=0.6, forever=True)
-    input()
+@begin.start
+@begin.logging
+def main():
+    play_sunvosc(s, bpm=115, forever=True)
