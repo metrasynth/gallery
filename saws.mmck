@@ -1,0 +1,19 @@
+{
+  "parameter_values": [
+    [
+      "name",
+      "My Project"
+    ],
+    [
+      "voices",
+      15
+    ],
+    [
+      "spread",
+      20
+    ]
+  ],
+  "mmck_version": 1,
+  "parameter_factory_source": "from sf.mmck.parameters import *\n\np.name = String('My Project', label='Project Name')\np.voices = Integer(5, range=(3, 17), step=2)\np.spread = Integer(5, range=(0, 128))\n",
+  "project_factory_source": "from sf.mmck.project import *\nfrom rv.api import *\n\nproject.name = p.name or ''\n\nmulti = project.new_module(\n    m.MultiSynth,\n    random_phase=32768,\n)\nstart = -(p.voices - 1) // 2\nend = start + p.voices\ngenerators = [\n    project.new_module(\n        m.AnalogGenerator,\n        volume=256,\n        attack=150,\n        release=242,\n        polyphony_ch=1,\n        sustain=False,\n        waveform=m.AnalogGenerator.Waveform.saw,\n        finetune=x * p.spread,\n    )\n    for x in range(start, end)\n]\nmulti >> generators >> project.output\n\nproject.layout()\n\nc.random_phase = (multi, 'random_phase')\n\nc.waveforms = Group()\nfor i, module in enumerate(generators, 1):\n    c.waveforms['generator_{}'.format(i)] = (module, 'waveform')\n"
+}
