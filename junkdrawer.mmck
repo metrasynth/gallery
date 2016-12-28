@@ -6,7 +6,7 @@
     ],
     [
       "random_seed",
-      7335
+      7414
     ],
     [
       "module_count",
@@ -18,7 +18,7 @@
     ],
     [
       "module_count_max",
-      200
+      25
     ],
     [
       "max_bifurcations",
@@ -46,7 +46,7 @@
     ],
     [
       "p_analog_gen",
-      50
+      69
     ],
     [
       "p_drumsynth",
@@ -58,7 +58,7 @@
     ],
     [
       "p_generator",
-      50
+      0
     ],
     [
       "p_kicker",
@@ -66,7 +66,7 @@
     ],
     [
       "p_sampler",
-      50
+      0
     ],
     [
       "p_spectravoice",
@@ -74,27 +74,27 @@
     ],
     [
       "p_amplifier",
-      50
+      0
     ],
     [
       "p_compressor",
-      50
+      71
     ],
     [
       "p_dc_blocker",
-      50
+      0
     ],
     [
       "p_delay",
-      50
+      56
     ],
     [
       "p_distortion",
-      50
+      30
     ],
     [
       "p_echo",
-      50
+      64
     ],
     [
       "p_eq",
@@ -102,31 +102,31 @@
     ],
     [
       "p_filter",
-      50
+      77
     ],
     [
       "p_filter_pro",
-      50
+      76
     ],
     [
       "p_lfo",
-      50
+      67
     ],
     [
       "p_loop",
-      50
+      80
     ],
     [
       "p_modulator",
-      50
+      71
     ],
     [
       "p_pitch_shifter",
-      50
+      70
     ],
     [
       "p_reverb",
-      50
+      86
     ],
     [
       "p_vibrato",
@@ -134,11 +134,11 @@
     ],
     [
       "p_vocal_filter",
-      50
+      79
     ],
     [
       "p_waveshaper",
-      50
+      32
     ],
     [
       "p_feedback",
@@ -146,11 +146,11 @@
     ],
     [
       "p_glide",
-      50
+      83
     ],
     [
       "p_multisynth",
-      50
+      84
     ],
     [
       "p_pitch2ctl",
@@ -173,7 +173,7 @@
       50
     ]
   ],
+  "project_factory_source": "from random import Random\n\nfrom sf.mmck.project import *\nfrom rv.api import *\nfrom rv.controller import Range\n\ndef printed(*args):\n    label, x = args if len(args) == 2 else ('--', args[0])\n    print(label, x)\n    return x\n\nproject.name = p.name or 'My Synth'\n\nMAX = 2**30\nrmaster = Random(p.random_seed)\nnew_seed = lambda : rmaster.randint(0, MAX)\nnew_random = lambda : Random(new_seed())\nmrandom = new_random()  # mutations\nnrandom = new_random()  # names\ntrandom = new_random()  # tracks\n\nmutations = []\n\nclass Track:\n    def __init__(self, *mods, ancestor=None):\n        self.random = new_random()\n        self.finished = False\n        self.ancestor = ancestor\n        self.mods = list(mods)\n\n    def __lshift__(self, other):\n        self.mods.append(other)\n        if len(self.mods) == 1 and self.ancestor:\n            self.ancestor.tail << self.tail\n            self.ancestor.finish()\n\n    @property\n    def previous(self):\n        for mod in reversed(self.mods[:-1]):\n            yield mod\n        if self.ancestor:\n            for mod in self.ancestor.previous:\n                yield mod\n\n    @property\n    def tail(self):\n        if self.mods:\n            return self.mods[-1]\n        elif self.ancestor:\n            return self.ancestor.tail\n\n    @property\n    def behaviors(self):\n        return getattr(self.tail, 'behaviors', set())\n\n    @property\n    def supported_mutations(self):\n        return set(self._supported_mutations())\n    def _supported_mutations(self):\n        if m.Behavior.sends_audio in self.behaviors:\n            yield 'effect'\n            if not self.finished:\n                yield 'reunion'\n        if m.Behavior.sends_notes in self.behaviors:\n            yield 'synth'\n        if not self.finished:\n            yield 'bifurcation'\n            yield 'termination'\n\n    def finish(self):\n        self.finished = True\n        print('{:x}.finished'.format(id(self)))\n\nmultisynth = project.new_module(m.MultiSynth)\ntracks = [\n    Track(multisynth),\n]\n\ndef randomize_controllers(mod, random, skip=set()):\n    choices = sorted(list(set(mod.controllers) - skip))\n    print('------------', choices)\n    count = random.randint(0, len(choices))\n    for _ in range(count):\n        ctl_name = random.choice(choices)\n        choices.remove(ctl_name)\n        ctl = mod.controllers[ctl_name]\n        if isinstance(ctl.value_type, Range):\n            value = random.randint(ctl.value_type.min, ctl.value_type.max)\n        elif ctl.value_type is bool:\n            value = random.choice([True, False])\n        else:\n            print(ctl.value_type)\n            value = random.choice(list(ctl.value_type))\n        print('setting {}.{} to {}'.format(mod, ctl_name, value))\n        setattr(mod, ctl_name, value)\n\nmutation_types = ['synth', 'effect', 'bifurcation', 'termination', 'reunion']\n\ndef go():\n    module_count = printed(rmaster.randint(p.module_count_min, p.module_count_max))\n    while len(project.modules) - 2 < module_count:\n        mutation_type = mrandom.choice(mutation_types)\n        prob_name = 'p_{}s'.format(mutation_type)\n        if mrandom.randint(0, 100) <= p[prob_name]:\n            fn = mrandom.choice([m for m in mutations if m.behavior == mutation_type])\n            if mrandom.randint(0, 100) <= fn.probability:\n                compatible_tracks = [t for t in tracks if mutation_type in t.supported_mutations]\n                if compatible_tracks:\n                    track = mrandom.choice(compatible_tracks)\n                    print('mutation={} track:{:x}'.format(fn.__name__, id(track)))\n                    fn(track)\n    dc_blocker = project.new_module(m.DcBlocker)\n    final_amp = project.new_module(m.Amplifier)\n    open_audio_tracks = [t for t in tracks if 'effect' in t.supported_mutations]\n    # project.output << dc_blocker << final_amp << [t.tail for t in open_audio_tracks]\n    project.output << [t.tail for t in open_audio_tracks]\n    project.layout()\n\n# ----\n\ndef mutation(behavior, probability):\n    def decorator(fn):\n        fn.behavior = behavior\n        fn.probability = probability\n        mutations.append(fn)\n        return fn\n    return decorator\n\ndef generic_random_mod(track, cls, skip=set()):\n    mod = project.new_module(cls)\n    randomize_controllers(mod, track.random, skip)\n    track.tail >> mod\n    track << mod\n    return mod\n\n@mutation('synth', p.p_analog_gen)\ndef analog_gen(track):\n    # TODO: waveform generation\n    generic_random_mod(track, m.AnalogGenerator)\n\n@mutation('synth', p.p_drumsynth)\ndef drumsynth(track):\n    generic_random_mod(track, m.DrumSynth)\n\n@mutation('synth', p.p_fm)\ndef fm(track):\n    generic_random_mod(track, m.Fm)\n\n@mutation('synth', p.p_generator)\ndef generator(track):\n    # TODO: waveform generation\n    generic_random_mod(track, m.Generator)\n\n@mutation('synth', p.p_kicker)\ndef kicker(track):\n    generic_random_mod(track, m.Kicker)\n\n@mutation('synth', p.p_sampler)\ndef sampler(track):\n    # TODO - pull a sample from a corpus of random samples\n    # TODO: waveform generation\n    pass\n\n@mutation('synth', p.p_spectravoice)\ndef spectravoice(track):\n    # TODO - construct random spectravoice table\n    pass\n\n@mutation('effect', p.p_amplifier)\ndef amplifier(track):\n    generic_random_mod(track, m.Amplifier, {'dc_offset'})\n\n@mutation('effect', p.p_compressor)\ndef compressor(track):\n    generic_random_mod(track, m.Compressor)\n\n@mutation('effect', p.p_dc_blocker)\ndef dc_blocker(track):\n    generic_random_mod(track, m.DcBlocker)\n\n@mutation('effect', p.p_delay)\ndef delay(track):\n    generic_random_mod(track, m.Delay)\n\n@mutation('effect', p.p_distortion)\ndef distortion(track):\n    generic_random_mod(track, m.Distortion)\n\n@mutation('effect', p.p_echo)\ndef echo(track):\n    generic_random_mod(track, m.Echo)\n\n@mutation('effect', p.p_eq)\ndef eq(track):\n    generic_random_mod(track, m.Eq)\n\n@mutation('effect', p.p_filter)\ndef filter(track):\n    generic_random_mod(track, m.Filter)\n\n@mutation('effect', p.p_filter_pro)\ndef filter_pro(track):\n    generic_random_mod(track, m.FilterPro)\n\n@mutation('effect', p.p_lfo)\ndef lfo(track):\n    # TODO\n    pass\n\n@mutation('effect', p.p_loop)\ndef loop(track):\n    generic_random_mod(track, m.Loop)\n\n@mutation('effect', p.p_pitch_shifter)\ndef pitch_shifter(track):\n    generic_random_mod(track, m.PitchShifter)\n\n@mutation('effect', p.p_reverb)\ndef reverb(track):\n    generic_random_mod(track, m.Reverb)\n\n@mutation('effect', p.p_vibrato)\ndef vibrato(track):\n    generic_random_mod(track, m.Vibrato)\n\n@mutation('effect', p.p_vocal_filter)\ndef vocal_filter(track):\n    generic_random_mod(track, m.VocalFilter)\n\n@mutation('effect', p.p_waveshaper)\ndef waveshaper(track):\n    # TODO: waveform generation\n    generic_random_mod(track, m.WaveShaper)\n\n@mutation('effect', p.p_feedback)\ndef feedback(track):\n    ancestors = list(track.previous)\n    if ancestors:\n        dest = track.random.choice(ancestors)\n        fb1 = project.new_module(m.Feedback)\n        fb2 = project.new_module(m.Feedback)\n        randomize_controllers(fb1, track.random)\n        randomize_controllers(fb2, track.random)\n        track.tail >> fb1 >> fb2 >> dest\n\n@mutation('synth', p.p_glide)\ndef glide(track):\n    generic_random_mod(track, m.Glide)\n\n@mutation('synth', p.p_multisynth)\ndef multisynth(track):\n    generic_random_mod(track, m.MultiSynth)\n\n@mutation('synth', p.p_pitch2ctl)\ndef pitch2ctl(track):\n    # TODO\n    pass\n\n@mutation('effect', p.p_sound2ctl)\ndef sound2ctl(track):\n    # TODO\n    pass\n\n@mutation('synth', p.p_velocity2ctl)\ndef velocity2ctl(track):\n    # TODO\n    pass\n\n@mutation('termination', p.p_terminations)\ndef maybe_terminate(track):\n    track.finish()\n\n@mutation('bifurcation', p.p_bifurcations)\ndef maybe_bifurcate(track):\n    bifurcations = track.random.randint(2, p.max_bifurcations)\n    for _ in range(2, bifurcations + 1):\n        tracks.append(Track(ancestor=track))\n\n@mutation('reunion', p.p_reunion_amp)\ndef reunion_amp(track):\n    compatible_tracks = [t for t in tracks if 'reunion' in t.supported_mutations and t is not track]\n    if compatible_tracks:\n        track2 = track.random.choice(compatible_tracks)\n        print(' + track2:{:x}'.format(id(track2)))\n        mod = generic_random_mod(track, m.Amplifier, {'dc_offset'})\n        track2.tail >> mod\n\n@mutation('reunion', p.p_modulator)\ndef modulator(track):\n    compatible_tracks = [t for t in tracks if 'reunion' in t.supported_mutations and t is not track]\n    if compatible_tracks:\n        modulator = track.random.choice(compatible_tracks)\n        print(' + modulator:{:x}'.format(id(modulator)))\n        mod = generic_random_mod(track, m.Modulator)\n        modulator.tail >> mod\n\n# ----\n\ngo()\nprint(project.module_connections)\nprint(project.modules)\n",
   "parameter_factory_source": "from sf.mmck.parameters import *\n\n# Define your parameters below by adding to the\n# `p` object.\n#\n# You can define String or Integer parameters.\n#\n# Example:\n#\n#   p.name = String(label='Project Name')\n#   p.voices = Integer(5, range=(3, 17), step=2)\n#   p.spread = Integer(5, range=(0, 128))\n\ndef probability():\n    return Integer(50, range=(0, 100))\n\np.name = String(label='Project Name')\np.random_seed = Integer(0, range=(0, 2**30))\np.module_count_min = Integer(1, range=(1, 200))\np.module_count_max = Integer(20, range=(1, 200))\np.max_bifurcations = Integer(4, range=(2, 10))\n\np.p_bifurcations = probability()\np.p_terminations = probability()\np.p_reunions = probability()\np.p_reunion_amp = probability()\n\np.p_synths = probability()\np.p_effects = probability()\n\np.p_analog_gen = probability()\np.p_drumsynth = probability()\np.p_fm = probability()\np.p_generator = probability()\np.p_kicker = probability()\np.p_sampler = probability()\np.p_spectravoice = probability()\n\np.p_amplifier = probability()\np.p_compressor = probability()\np.p_dc_blocker = probability()\np.p_delay = probability()\np.p_distortion = probability()\np.p_echo = probability()\np.p_eq = probability()\np.p_filter = probability()\np.p_filter_pro = probability()\np.p_lfo = probability()\np.p_loop = probability()\np.p_modulator = probability()\np.p_pitch_shifter = probability()\np.p_reverb = probability()\np.p_vibrato = probability()\np.p_vocal_filter = probability()\np.p_waveshaper = probability()\n\np.p_feedback = probability()\np.p_glide = probability()\np.p_multisynth = probability()\np.p_pitch2ctl = probability()\np.p_sound2ctl = probability()\np.p_velocity2ctl = probability()\n",
-  "mmck_version": 1,
-  "project_factory_source": "from random import Random\n\nfrom sf.mmck.project import *\nfrom rv.api import *\nfrom rv.controller import Range\n\ndef printed(*args):\n    label, x = args if len(args) == 2 else ('--', args[0])\n    print(label, x)\n    return x\n\nproject.name = p.name or 'My Synth'\n\nMAX = 2**30\nrmaster = Random(p.random_seed)\nnew_seed = lambda : rmaster.randint(0, MAX)\nnew_random = lambda : Random(new_seed())\nmrandom = new_random()  # mutations\nnrandom = new_random()  # names\ntrandom = new_random()  # tracks\n\nmutations = []\n\nclass Track:\n    def __init__(self, *mods, ancestor=None):\n        self.random = new_random()\n        self.finished = False\n        self.ancestor = ancestor\n        self.mods = list(mods)\n\n    def __lshift__(self, other):\n        self.mods.append(other)\n        if len(self.mods) == 1 and self.ancestor:\n            self.ancestor.tail << self.tail\n            self.ancestor.finish()\n\n    @property\n    def previous(self):\n        for mod in reversed(self.mods[:-1]):\n            yield mod\n        if self.ancestor:\n            for mod in self.ancestor.previous:\n                yield mod\n\n    @property\n    def tail(self):\n        if self.mods:\n            return self.mods[-1]\n        elif self.ancestor:\n            return self.ancestor.tail\n\n    @property\n    def behaviors(self):\n        return getattr(self.tail, 'behaviors', set())\n\n    @property\n    def supported_mutations(self):\n        return set(self._supported_mutations())\n    def _supported_mutations(self):\n        if m.Behavior.sends_audio in self.behaviors:\n            yield 'effect'\n            if not self.finished:\n                yield 'reunion'\n        if m.Behavior.sends_notes in self.behaviors:\n            yield 'synth'\n        if not self.finished:\n            yield 'bifurcation'\n            yield 'termination'\n\n    def finish(self):\n        self.finished = True\n        print('{:x}.finished'.format(id(self)))\n\nmultisynth = project.new_module(m.MultiSynth)\ntracks = [\n    Track(multisynth),\n]\n\ndef randomize_controllers(mod, random, skip=set()):\n    choices = sorted(list(set(mod.controllers) - skip))\n    print('------------', choices)\n    count = random.randint(0, len(choices))\n    for _ in range(count):\n        ctl_name = random.choice(choices)\n        choices.remove(ctl_name)\n        ctl = mod.controllers[ctl_name]\n        if isinstance(ctl.value_type, Range):\n            value = random.randint(ctl.value_type.min, ctl.value_type.max)\n        elif ctl.value_type is bool:\n            value = random.choice([True, False])\n        else:\n            print(ctl.value_type)\n            value = random.choice(list(ctl.value_type))\n        print('setting {}.{} to {}'.format(mod, ctl_name, value))\n        setattr(mod, ctl_name, value)\n\nmutation_types = ['synth', 'effect', 'bifurcation', 'termination', 'reunion']\n\ndef go():\n    module_count = printed(rmaster.randint(p.module_count_min, p.module_count_max))\n    while len(project.modules) - 2 < module_count:\n        mutation_type = mrandom.choice(mutation_types)\n        prob_name = 'p_{}s'.format(mutation_type)\n        if mrandom.randint(0, 100) <= p[prob_name]:\n            fn = mrandom.choice([m for m in mutations if m.behavior == mutation_type])\n            if mrandom.randint(0, 100) <= fn.probability:\n                compatible_tracks = [t for t in tracks if mutation_type in t.supported_mutations]\n                if compatible_tracks:\n                    track = mrandom.choice(compatible_tracks)\n                    print('mutation={} track:{:x}'.format(fn.__name__, id(track)))\n                    fn(track)\n    dc_blocker = project.new_module(m.DcBlocker)\n    final_amp = project.new_module(m.Amplifier)\n    open_audio_tracks = [t for t in tracks if 'effect' in t.supported_mutations]\n    # project.output << dc_blocker << final_amp << [t.tail for t in open_audio_tracks]\n    project.output << [t.tail for t in open_audio_tracks]\n    project.layout()\n\n# ----\n\ndef mutation(behavior, probability):\n    def decorator(fn):\n        fn.behavior = behavior\n        fn.probability = probability\n        mutations.append(fn)\n        return fn\n    return decorator\n\ndef generic_random_mod(track, cls, skip=set()):\n    mod = project.new_module(cls)\n    randomize_controllers(mod, track.random, skip)\n    track.tail >> mod\n    track << mod\n    return mod\n\n@mutation('synth', p.p_analog_gen)\ndef analog_gen(track):\n    # TODO: waveform generation\n    generic_random_mod(track, m.AnalogGenerator)\n\n@mutation('synth', p.p_drumsynth)\ndef drumsynth(track):\n    generic_random_mod(track, m.DrumSynth)\n\n@mutation('synth', p.p_fm)\ndef fm(track):\n    generic_random_mod(track, m.Fm)\n\n@mutation('synth', p.p_generator)\ndef generator(track):\n    # TODO: waveform generation\n    generic_random_mod(track, m.Generator)\n\n@mutation('synth', p.p_kicker)\ndef kicker(track):\n    generic_random_mod(track, m.Kicker)\n\n@mutation('synth', p.p_sampler)\ndef sampler(track):\n    # TODO - pull a sample from a corpus of random samples\n    # TODO: waveform generation\n    pass\n\n@mutation('synth', p.p_spectravoice)\ndef spectravoice(track):\n    # TODO - construct random spectravoice table\n    pass\n\n@mutation('effect', p.p_amplifier)\ndef amplifier(track):\n    generic_random_mod(track, m.Amplifier, {'dc_offset'})\n\n@mutation('effect', p.p_compressor)\ndef compressor(track):\n    generic_random_mod(track, m.Compressor)\n\n@mutation('effect', p.p_dc_blocker)\ndef dc_blocker(track):\n    generic_random_mod(track, m.DcBlocker)\n\n@mutation('effect', p.p_delay)\ndef delay(track):\n    generic_random_mod(track, m.Delay)\n\n@mutation('effect', p.p_distortion)\ndef distortion(track):\n    generic_random_mod(track, m.Distortion)\n\n@mutation('effect', p.p_echo)\ndef echo(track):\n    generic_random_mod(track, m.Echo)\n\n@mutation('effect', p.p_eq)\ndef eq(track):\n    generic_random_mod(track, m.Eq)\n\n@mutation('effect', p.p_filter)\ndef filter(track):\n    generic_random_mod(track, m.Filter)\n\n@mutation('effect', p.p_filter_pro)\ndef filter_pro(track):\n    generic_random_mod(track, m.FilterPro)\n\n@mutation('effect', p.p_lfo)\ndef lfo(track):\n    # TODO\n    pass\n\n@mutation('effect', p.p_loop)\ndef loop(track):\n    generic_random_mod(track, m.Loop)\n\n@mutation('effect', p.p_pitch_shifter)\ndef pitch_shifter(track):\n    generic_random_mod(track, m.PitchShifter)\n\n@mutation('effect', p.p_reverb)\ndef reverb(track):\n    generic_random_mod(track, m.Reverb)\n\n@mutation('effect', p.p_vibrato)\ndef vibrato(track):\n    generic_random_mod(track, m.Vibrato)\n\n@mutation('effect', p.p_vocal_filter)\ndef vocal_filter(track):\n    generic_random_mod(track, m.VocalFilter)\n\n@mutation('effect', p.p_waveshaper)\ndef waveshaper(track):\n    # TODO: waveform generation\n    generic_random_mod(track, m.WaveShaper)\n\n@mutation('effect', p.p_feedback)\ndef feedback(track):\n    ancestors = list(track.previous)\n    if ancestors:\n        dest = track.random.choice(ancestors)\n        fb1 = project.new_module(m.Feedback)\n        fb2 = project.new_module(m.Feedback)\n        randomize_controllers(fb1, track.random)\n        randomize_controllers(fb2, track.random)\n        track.tail >> fb1 >> fb2 >> dest\n\n@mutation('synth', p.p_glide)\ndef glide(track):\n    generic_random_mod(track, m.Glide)\n\n@mutation('synth', p.p_multisynth)\ndef multisynth(track):\n    generic_random_mod(track, m.MultiSynth)\n\n@mutation('synth', p.p_pitch2ctl)\ndef pitch2ctl(track):\n    # TODO\n    pass\n\n@mutation('effect', p.p_sound2ctl)\ndef sound2ctl(track):\n    # TODO\n    pass\n\n@mutation('synth', p.p_velocity2ctl)\ndef velocity2ctl(track):\n    # TODO\n    pass\n\n@mutation('termination', p.p_terminations)\ndef maybe_terminate(track):\n    track.finish()\n\n@mutation('bifurcation', p.p_bifurcations)\ndef maybe_bifurcate(track):\n    bifurcations = track.random.randint(2, p.max_bifurcations)\n    for _ in range(2, bifurcations + 1):\n        tracks.append(Track(ancestor=track))\n\n@mutation('reunion', p.p_reunion_amp)\ndef reunion_amp(track):\n    compatible_tracks = [t for t in tracks if 'reunion' in t.supported_mutations and t is not track]\n    if compatible_tracks:\n        track2 = track.random.choice(compatible_tracks)\n        print(' + track2:{:x}'.format(id(track2)))\n        mod = generic_random_mod(track, m.Amplifier, {'dc_offset'})\n        track2.tail >> mod\n\n@mutation('reunion', p.p_modulator)\ndef modulator(track):\n    compatible_tracks = [t for t in tracks if 'reunion' in t.supported_mutations and t is not track]\n    if compatible_tracks:\n        modulator = track.random.choice(compatible_tracks)\n        print(' + modulator:{:x}'.format(id(modulator)))\n        mod = generic_random_mod(track, m.Modulator)\n        modulator.tail >> mod\n\n# ----\n\ngo()\nprint(project.module_connections)\nprint(project.modules)\n"
+  "mmck_version": 1
 }
