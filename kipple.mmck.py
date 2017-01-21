@@ -1,28 +1,34 @@
+from enum import Enum
+from random import Random
+
+from rv.api import m
+from rv.controller import Range
+from sf.mmck import Group
+
+
 # -----------------------------------------------------------------------------
 
 
-def parameters():
-    from sf.mmck.parameters import p, String, Integer
-
+def set_parameters(p, P):
     # Define your parameters below by adding to the
     # `p` object.
     #
-    # You can define String or Integer parameters.
+    # You can define P.String or P.Integer parameters.
     #
     # Example:
     #
-    #   p.name = String(label='Project Name')
-    #   p.voices = Integer(5, range=(3, 17), step=2)
-    #   p.spread = Integer(5, range=(0, 128))
+    #   p.name = P.String(label='Project Name')
+    #   p.voices = P.Integer(5, range=(3, 17), step=2)
+    #   p.spread = P.Integer(5, range=(0, 128))
 
     def probability():
-        return Integer(50, range=(0, 100))
+        return P.Integer(50, range=(0, 100))
 
-    p.name = String(label='Project Name')
-    p.random_seed = Integer(0, range=(0, 2**30))
-    p.module_count_min = Integer(1, range=(1, 200))
-    p.module_count_max = Integer(20, range=(1, 200))
-    p.max_bifurcations = Integer(4, range=(2, 10))
+    p.name = P.String(label='Project Name')
+    p.random_seed = P.Integer(0, range=(0, 2**30))
+    p.module_count_min = P.Integer(1, range=(1, 200))
+    p.module_count_max = P.Integer(20, range=(1, 200))
+    p.max_bifurcations = P.Integer(4, range=(2, 10))
 
     p.p_bifurcations = probability()
     p.p_terminations = probability()
@@ -69,13 +75,7 @@ def parameters():
 # -----------------------------------------------------------------------------
 
 
-def project():
-    from enum import Enum
-    from random import Random
-
-    from sf.mmck.project import c, p, project
-    from rv.api import m
-    from rv.controller import Range
+def build_project(p, c, project):
 
     def printed(*args):
         label, x = args if len(args) == 2 else ('--', args[0])
@@ -86,8 +86,8 @@ def project():
 
     MAX = 2**30
     rmaster = Random(p.random_seed)
-    new_seed = lambda : rmaster.randint(0, MAX)
-    new_random = lambda : Random(new_seed())
+    new_seed = lambda: rmaster.randint(0, MAX)
+    new_random = lambda: Random(new_seed())
     mrandom = new_random()  # mutations
     nrandom = new_random()  # names
     trandom = new_random()  # tracks

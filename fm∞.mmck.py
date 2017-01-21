@@ -1,11 +1,15 @@
+from rv.api import m
+from sf.mmck import Group
+
+from collections import defaultdict
+
+
 # -----------------------------------------------------------------------------
 
 
-def parameters():
-    from sf.mmck.parameters import p, String
-    
-    # Define your parameters below by adding to the
-    # `p` object.
+def set_parameters(p, P):
+    # Define your parameters below by assigning them to the
+    # `p` object, then returning it.
     #
     # You can define String or Integer parameters.
     #
@@ -15,19 +19,14 @@ def parameters():
     #   p.voices = Integer(5, range=(3, 17), step=2)
     #   p.spread = Integer(5, range=(0, 128))
     
-    p.name = String('My FM Synth', label='Project Name')
-    p.algorithm = String('4- 43 3. 2. 1.', label='Algorithm')
-    
+    p.name = P.String('My FM Synth', label='Project Name')
+    p.algorithm = P.String('4- 43 3. 2. 1.', label='Algorithm')
+
 
 # -----------------------------------------------------------------------------
 
 
-def project():
-    from sf.mmck.project import c, p, project
-    from rv.api import m
-
-    from collections import defaultdict
-
+def build_project(p, c, project):
     # Construct the MetaModule interior by
     # attaching modules to the `project` object.
     # Consult the `rv` documentation for details.
@@ -49,7 +48,6 @@ def project():
     #   gen >> project.output
     #   c.attack = (gen, 'attack')
     #   c.release = (gen, 'release')
-
 
     def sin_generator(group, name):
         module = project.new_module(
@@ -77,7 +75,6 @@ def project():
 
     out_amp = project.new_module(m.Amplifier)
     out_amp >> project.output
-    c.master_volume = (out_amp, 'volume')
 
     forward_graph = defaultdict(list)
     edges = [(src, dest) for src, dest in p.algorithm.split(' ')]
