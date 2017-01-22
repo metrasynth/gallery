@@ -159,3 +159,5 @@ def build_project(p, c, project):
                 src_mod >> dest_amp
 
     note_in >> list(operator_multis.values())
+
+    project.layout()
