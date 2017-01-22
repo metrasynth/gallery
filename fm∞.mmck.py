@@ -140,7 +140,7 @@ def build_project(p, c, project):
             if src_key == dest_key:
                 fb1 = project.new_module(m.Feedback, volume=0)
                 fb2 = project.new_module(m.Feedback, volume=0)
-                fb_ctl = m.MultiCtl.bundle(
+                fb_ctl = m.MultiCtl.macro(
                     project,
                     (fb1, 'volume'),
                     (fb2, 'volume'),

@@ -220,7 +220,7 @@ def build_project(p, c, project):
                 if all_ctls:
                     label = gen_name()
                     mod, ctlname = all_ctls.pop()
-                    bundle = m.MultiCtl.bundle(
+                    macro = m.MultiCtl.macro(
                         project,
                         (mod, ctlname),
                         name=label,
@@ -228,7 +228,7 @@ def build_project(p, c, project):
                         x=ctlnum * 80,
                         y=groupnum * 80,
                     )
-                    c[groupname][label] = (bundle, 'value')
+                    c[groupname][label] = (macro, 'value')
 
     def go():
         module_count = printed(rmaster.randint(p.module_count_min, p.module_count_max))
