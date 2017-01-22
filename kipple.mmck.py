@@ -220,31 +220,15 @@ def build_project(p, c, project):
                 if all_ctls:
                     label = gen_name()
                     mod, ctlname = all_ctls.pop()
-                    ctl = mod.controllers[ctlname]
-                    t = ctl.value_type
-                    if isinstance(t, type) and issubclass(t, Enum):
-                        mapmin, mapmax = 0, len(t) - 1
-                        gain = 256 + int(256 / mapmax)
-                    elif t is bool:
-                        mapmin, mapmax = 0, 1
-                        gain = 512
-                    elif t.min == 1:
-                        mapmin, mapmax = t.min, t.max
-                        gain = 256 + int(256 / mapmax)
-                    else:
-                        mapmin, mapmax = 0, 0x8000
-                        gain = 256
-                    multi = project.new_module(
-                        m.MultiCtl,
+                    bundle = m.MultiCtl.bundle(
+                        project,
+                        (mod, ctlname),
                         name=label,
                         layer=1,
-                        mappings=[(mapmin, mapmax, ctl.number)],
-                        gain=gain,
                         x=ctlnum * 80,
                         y=groupnum * 80,
                     )
-                    multi >> mod
-                    c[groupname][label] = (multi, 'value')
+                    c[groupname][label] = (bundle, 'value')
 
     def go():
         module_count = printed(rmaster.randint(p.module_count_min, p.module_count_max))

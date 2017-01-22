@@ -140,18 +140,14 @@ def build_project(p, c, project):
             if src_key == dest_key:
                 fb1 = project.new_module(m.Feedback, volume=0)
                 fb2 = project.new_module(m.Feedback, volume=0)
-                fb_ctl = project.new_module(
-                    m.MultiCtl,
-                    value=0,
+                fb_ctl = m.MultiCtl.bundle(
+                    project,
+                    (fb1, 'volume'),
+                    (fb2, 'volume'),
                     name='{} fb'.format(src_key),
-                    mappings=[
-                        (0, 32768, fb1.controllers['volume'].number),
-                        (0, 32768, fb2.controllers['volume'].number),
-                    ]
                 )
                 src_m_amp = operator_m_amps[src_key]
                 src_mod >> fb1 >> fb2 >> src_m_amp
-                fb_ctl >> [fb1, fb2]
                 feedback_ctls[src_key] = fb_ctl
                 group = c['operator_{}'.format(src_key)]
                 group.feedback = (fb_ctl, 'value')
