@@ -7,7 +7,7 @@ from sf.mmck import Group
 
 def set_parameters(p, P):
     p.name = P.String('My Project', label='Project Name')
-    p.voices = P.Integer(5, range=(3, 17), step=2)
+    p.voices = P.Integer(5, range=(3, 15), step=2)
     p.spread = P.Integer(5, range=(0, 128))
 
 
