@@ -228,6 +228,7 @@ def build_project(p, c, project):
                         x=ctlnum * 80,
                         y=groupnum * 80,
                     )
+                    macro.reflect()
                     c[groupname][label] = (macro, 'value')
 
     def go():
