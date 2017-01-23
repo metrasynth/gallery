@@ -435,3 +435,4 @@ def build_project(p, c, project):
     # ----
 
     go()
+    print('Going... going... gone!')
