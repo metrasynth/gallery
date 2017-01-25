@@ -43,6 +43,12 @@ def build_project(p, c, project):
     drumsmod = drums.new_module(m.DrumSynth)
     drumsmod >> drums.output
 
+    drumsmeta.user_defined_controllers = 1
+    drumsmeta.mappings.values[0].module = drumsmod.index
+    drumsmeta.mappings.values[0].controller = drumsmod.controllers['snare_length'].number
+    drumsmeta.recompute_controller_attachment()
+    drumsmeta.update_user_defined_controllers()
+
     lines = len(p.left_sequence) * p.loops
     drumspat = Pattern(tracks=2, lines=lines)
     drums += drumspat
@@ -54,3 +60,4 @@ def build_project(p, c, project):
     c.common = Group()
     c.common.bpm = (drumsmeta, 'bpm')
     c.common.tpl = (drumsmeta, 'tpl')
+    c.common.snare_length = (drumsmeta, 'user_defined_1')
