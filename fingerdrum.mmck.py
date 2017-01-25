@@ -43,9 +43,11 @@ def build_project(p, c, project):
     drumsmod = drums.new_module(m.DrumSynth)
     drumsmod >> drums.output
 
-    drumsmeta.user_defined_controllers = 1
-    drumsmeta.mappings.values[0].module = drumsmod.index
-    drumsmeta.mappings.values[0].controller = drumsmod.controllers['snare_length'].number
+    drumsmeta.user_defined_controllers = 9
+    for x in range(9):
+        mapping = drumsmeta.mappings.values[x]
+        mapping.module = drumsmod.index
+        mapping.controller = x + 4
     drumsmeta.recompute_controller_attachment()
     drumsmeta.update_user_defined_controllers()
 
@@ -60,4 +62,12 @@ def build_project(p, c, project):
     c.common = Group()
     c.common.bpm = (drumsmeta, 'bpm')
     c.common.tpl = (drumsmeta, 'tpl')
-    c.common.snare_length = (drumsmeta, 'user_defined_1')
+    c.common.bass_volume = (drumsmeta, 'user_defined_1')
+    c.common.bass_power = (drumsmeta, 'user_defined_2')
+    c.common.bass_tone = (drumsmeta, 'user_defined_3')
+    c.common.bass_length = (drumsmeta, 'user_defined_4')
+    c.common.hihat_volume = (drumsmeta, 'user_defined_5')
+    c.common.hihat_length = (drumsmeta, 'user_defined_6')
+    c.common.snare_volume = (drumsmeta, 'user_defined_7')
+    c.common.snare_tone = (drumsmeta, 'user_defined_8')
+    c.common.snare_length = (drumsmeta, 'user_defined_9')
