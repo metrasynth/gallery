@@ -1,5 +1,4 @@
 from rv.api import m
-from sf.mmck import Group
 
 
 # -----------------------------------------------------------------------------
@@ -46,6 +45,5 @@ def build_project(p, c, project):
     c.release = (release, 'value')
     c.sustain = (sustain, 'value')
     
-    c.waveforms = Group()
     for i, module in enumerate(generators, 1):
         c.waveforms['generator_{}'.format(i)] = (module, 'waveform')

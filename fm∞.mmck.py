@@ -1,7 +1,6 @@
-from rv.api import m
-from sf.mmck import Group
-
 from collections import defaultdict
+
+from rv.api import m
 
 
 # -----------------------------------------------------------------------------
@@ -99,9 +98,6 @@ def build_project(p, c, project):
     operator_names.remove('.')
 
     operator_factories = operator_factories or ([operator] * operator_count)
-
-    for name in operator_names:
-        c['operator_{}'.format(name)] = Group()
 
     operators = {}
     operator_c_amps = {}

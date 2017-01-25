@@ -1,9 +1,7 @@
-from enum import Enum
 from random import Random
 
 from rv.api import m
 from rv.controller import Range
-from sf.mmck import Group
 
 
 # -----------------------------------------------------------------------------
@@ -215,7 +213,6 @@ def build_project(p, c, project):
         nrandom.shuffle(all_ctls)
         for groupnum in range(8):
             groupname = gen_name()
-            group = c[groupname] = Group()
             for ctlnum in range(8):
                 if all_ctls:
                     label = gen_name()

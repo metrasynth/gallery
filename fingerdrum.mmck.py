@@ -1,5 +1,4 @@
 from rv.api import m, Pattern, Note, Project
-from sf.mmck import Group
 
 
 # -----------------------------------------------------------------------------
@@ -56,15 +55,14 @@ def build_project(p, c, project):
 
     project.name = p.name
 
-    c.common = Group()
     c.common.bpm = (drumsmeta, 'bpm')
     c.common.tpl = (drumsmeta, 'tpl')
-    c.common.bass_volume = (drumsmeta, 'user_defined_1')
-    c.common.bass_power = (drumsmeta, 'user_defined_2')
-    c.common.bass_tone = (drumsmeta, 'user_defined_3')
-    c.common.bass_length = (drumsmeta, 'user_defined_4')
-    c.common.hihat_volume = (drumsmeta, 'user_defined_5')
-    c.common.hihat_length = (drumsmeta, 'user_defined_6')
-    c.common.snare_volume = (drumsmeta, 'user_defined_7')
-    c.common.snare_tone = (drumsmeta, 'user_defined_8')
-    c.common.snare_length = (drumsmeta, 'user_defined_9')
+    c.bass.volume = (drumsmeta, 'user_defined_1')
+    c.bass.power = (drumsmeta, 'user_defined_2')
+    c.bass.tone = (drumsmeta, 'user_defined_3')
+    c.bass.length = (drumsmeta, 'user_defined_4')
+    c.hihat.volume = (drumsmeta, 'user_defined_5')
+    c.hihat.length = (drumsmeta, 'user_defined_6')
+    c.snare.volume = (drumsmeta, 'user_defined_7')
+    c.snare.tone = (drumsmeta, 'user_defined_8')
+    c.snare.length = (drumsmeta, 'user_defined_9')
