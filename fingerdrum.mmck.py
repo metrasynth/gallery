@@ -11,7 +11,7 @@ def set_parameters(p, P):
     p.right_drums = P.String('HH01 HH12 HH23 HH41 HH52', label='Right Finger Drums')
     p.left_sequence = P.String('x..x..x..x.x.xx.', label='Left Finger Sequence')
     p.right_sequence = P.String('xxx.x.xxx.x.xxx.', label='Right Finger Sequence')
-    p.loops = P.Integer(8, label='Loops')
+    p.lines = P.Integer(128, range=(4, 1024), label='Lines')
 
 
 # -----------------------------------------------------------------------------
@@ -30,8 +30,6 @@ def generate_hand(drums, sequence, lines, track, module):
 
 
 def build_project(p, c, project):
-    assert len(p.left_sequence) == len(p.right_sequence)
-
     note_in = project.new_module(m.MultiSynth, name='note in')
 
     drums = Project()
@@ -51,11 +49,10 @@ def build_project(p, c, project):
     drumsmeta.recompute_controller_attachment()
     drumsmeta.update_user_defined_controllers()
 
-    lines = len(p.left_sequence) * p.loops
-    drumspat = Pattern(tracks=2, lines=lines)
+    drumspat = Pattern(tracks=2, lines=p.lines)
     drums += drumspat
-    drumspat.set_via_gen(generate_hand(p.left_drums, p.left_sequence, lines, 0, drumsmod))
-    drumspat.set_via_gen(generate_hand(p.right_drums, p.right_sequence, lines, 1, drumsmod))
+    drumspat.set_via_gen(generate_hand(p.left_drums, p.left_sequence, p.lines, 0, drumsmod))
+    drumspat.set_via_gen(generate_hand(p.right_drums, p.right_sequence, p.lines, 1, drumsmod))
 
     project.name = p.name
 
