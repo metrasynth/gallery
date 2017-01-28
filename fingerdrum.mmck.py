@@ -33,7 +33,7 @@ def build_project(p, c, project):
 
     drums = Project()
     drums.name = 'Drums'
-    drumsmeta = project.new_module(m.MetaModule, project=drums, input_module=254)
+    drumsmeta = project.new_module(m.MetaModule, project=drums, input_module=254, apply_velocity_to_project=True)
     drumsmeta.play_patterns = True
     note_in >> drumsmeta >> project.output
 
