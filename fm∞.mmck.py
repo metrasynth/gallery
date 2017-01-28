@@ -53,6 +53,7 @@ def build_project(p, c, project):
             m.AnalogGenerator,
             name=name,
             polyphony_ch=1,
+            waveform=m.AnalogGenerator.Waveform.sin,
         )
         group.waveform = (module, 'waveform')
         group.sustain = (module, 'sustain')
