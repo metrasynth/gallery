@@ -39,7 +39,7 @@ def set_parameters(p, P):
     p.accent_threshold = P.Integer(127, range=(0, 255))
     p.performer = P.String(PERFORMERS[0], choices=PERFORMERS)
     p.digits = P.String(DIGITS[0], choices=DIGITS)
-    p.phrases = P.String('4444,4444,4444,4444')
+    p.measures = P.String('4444,4444,4444,4444')
     p.variations = P.Integer(1, range=(1, 16))
 
     for slot in range(8):
@@ -49,30 +49,34 @@ def set_parameters(p, P):
         setslot('paths', P.PathList())
         setslot('seed', P.Integer(0, **SEED_RANGE))
         setslot('samples', P.Integer(1, range=(1, 15)))
-        setslot('phrase_strength', P.String('9'))
-        setslot('phrase_wild', P.String('0'))
+        setslot('measure_strength', P.String('9'))
+        setslot('measure_wild', P.String('0'))
+        setslot('beat_accent', P.String('0'))
         setslot('note_chance', P.String('0'))
         setslot('note_accent', P.String('0'))
         setslot('note_variation', P.String('0'))
         setslot('velocity_variation', P.String('0'))
 
     p.slot1_name.default = 'kick'
-    p.slot1_phrase_strength.default = '9'
-    p.slot1_phrase_wild.default = '0,1,0,9'
+    p.slot1_measure_strength.default = '9'
+    p.slot1_measure_wild.default = '0109'
+    p.slot1_beat_accent.default = '9'
     p.slot1_note_chance.default = '9132'
     p.slot1_note_accent.default = '9555'
     p.slot1_note_variation.default = '0555'
 
     p.slot2_name.default = 'snare'
-    p.slot2_phrase_strength.default = '9,9,9,5'
-    p.slot2_phrase_wild.default = '1,1,5,9'
+    p.slot2_measure_strength.default = '9995'
+    p.slot2_measure_wild.default = '1159'
+    p.slot2_beat_accent.default = '09'
     p.slot2_note_chance.default = '21149214'
     p.slot2_note_accent.default = '53339333'
     p.slot2_note_variation.default = '55550555'
 
     p.slot3_name.default = 'toms'
-    p.slot3_phrase_strength.default = '1,1,1,7'
-    p.slot3_phrase_wild.default = '1,4,1,9'
+    p.slot3_measure_strength.default = '1,1,1,7'
+    p.slot3_measure_wild.default = '1,4,1,9'
+    p.slot3_beat_accent.default = '5'
     p.slot3_note_chance.default = '864'
     p.slot3_note_accent.default = '522'
     p.slot3_note_variation.default = '64215'
@@ -242,7 +246,7 @@ def build_project(p, c, project):
             group['__{}__'.format(len(group) + 1)] = (macro, 'value')
 
     # General pattern stuff.
-    lines = pattern_lines(p.phrases)
+    lines = pattern_lines(p.measures)
 
     # Swing pattern.
     swing = Pattern(name='swing', tracks=1, x=0, y=-64, lines=lines)
@@ -295,16 +299,22 @@ def build_project(p, c, project):
 
     # Perform variations.
     def gentrack(pattern, mod, slot, rrandom, notes):
+        def v(name):
+            return list(decoded(var(name, slot), p.digits))
         performance = performer(
-            notes=notes,
+            pattern=pattern,
+            mod=mod,
+            slot=slot,
             random=rrandom,
+            notes=notes,
             p=p,
-            phrase_strength=var('phrase_strength', slot),
-            phrase_wild=var('phrase_wild', slot),
-            note_chance=var('note_chance', slot),
-            note_accent=var('note_accent', slot),
-            note_variation=var('note_variation', slot),
-            velocity_variation=var('phrase_strength', slot),
+            measure_strength=v('measure_strength'),
+            measure_wild=v('measure_wild'),
+            beat_accent=v('beat_accent'),
+            note_chance=v('note_chance'),
+            note_accent=v('note_accent'),
+            note_variation=v('note_variation'),
+            velocity_variation=v('measure_strength'),
         )
         for line, (note, vel) in zip(range(pattern.lines), performance):
             if note:
@@ -340,17 +350,31 @@ def performer(fn):
 
 
 @performer
-def phraser(notes, random, p, phrase_strength, phrase_wild, note_chance, note_accent, note_variation, velocity_variation):
-    line = 0
-    length = pattern_lines(p.phrases)
-    while line < length:
-        yield (None, None)
-        line += 1
+def phrasier(notes, random, p, measure_strength, measure_wild, beat_accent, note_chance, note_accent, note_variation, velocity_variation, **kwargs):
+    # TODO: wild
+    basenote = random.choice(notes)
+    for measure, beat, line, measureline, beatline in measure_counters(p.measures, p.digits):
+        nc = cyclevalue(note_chance, measureline)
+        ms = cyclevalue(measure_strength, measure)
+        if nc == 0 or ms == 0 or random.random() > nc * ms:
+            yield (None, None)
+            continue
+        ba = cyclevalue(beat_accent, beatline) * 0.25
+        na = cyclevalue(note_accent, measureline) * 0.25
+        vv = cyclevalue(velocity_variation, measureline) - 0.5
+        vel = int((0.5 + ba + na + vv) * 128)
+        vel = min(128, max(0, vel))
+        nv = cyclevalue(note_variation, measureline)
+        if random.random() <= nv:
+            note = random.choice(notes)
+        else:
+            note = basenote
+        yield (note, vel)
 
 
 @performer
 def dummer(notes, random, p, **kwargs):
-    for _ in range(pattern_lines(p.phrases)):
+    for _ in range(pattern_lines(p.measures)):
         if random.random() > 0.5:
             yield (random.choice(notes), random.randint(0, 128))
         else:
@@ -359,7 +383,7 @@ def dummer(notes, random, p, **kwargs):
 
 @performer
 def silence(p, **kwargs):
-    return [(None, None)] * pattern_lines(p.phrases)
+    return [(None, None)] * pattern_lines(p.measures)
 
 
 # -[ Utils ]----------------------------------------------------------------------------
@@ -395,9 +419,33 @@ def samplefinder(name, paths, random):
     return fn
 
 
-def pattern_lines(phrases):
+def pattern_lines(measures):
     length = 0
-    for c in phrases:
+    for c in measures:
         if c in '123456789':
             length += int(c)
     return length
+
+
+def measure_counters(measures, digits):
+    # yields 3-tuple of indices: (measure, beat, line, measureline, beatline)
+    line = 0
+    for measure, beats in enumerate(measures.lower().split(',')):
+        beats = beats.strip()
+        measureline = 0
+        for beat, lines in enumerate(int(d) for d in beats):
+            for beatline in range(lines):
+                yield (measure, beat, line, measureline, beatline)
+                line += 1
+                measureline += 1
+
+
+def decoded(values, digits):
+    for c in values.lower():
+        value = digits.find(c)
+        if value != -1:
+            yield value / (len(digits) - 1)
+
+
+def cyclevalue(values, line):
+    return values[line % len(values)]
