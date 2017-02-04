@@ -22,6 +22,12 @@ from rv.api import m, NOTE, NOTECMD, Pattern
 MAX_RAND = 2 ** 30
 SEED_RANGE = dict(range=(0, MAX_RAND))
 
+DIGITS = [
+    '0123456789',
+    '0123456789abcdef',
+    '0123456789abcdefghijklmnopqrstuvwxyz',
+]
+
 
 def set_parameters(p, P):
 
@@ -32,80 +38,44 @@ def set_parameters(p, P):
     p.swing = P.Integer(0, range=(0, 5))
     p.accent_threshold = P.Integer(127, range=(0, 255))
     p.performer = P.String(PERFORMERS[0], choices=PERFORMERS)
-    p.phrases = P.String('4444 4444 4444 4444')
+    p.digits = P.String(DIGITS[0], choices=DIGITS)
+    p.phrases = P.String('4444,4444,4444,4444')
     p.variations = P.Integer(1, range=(1, 16))
 
-    p.slot1_name = P.String('kick')
-    p.slot1_seed = P.Integer(0, **SEED_RANGE)
-    p.slot1_samples = P.Integer(1, range=(1, 15))
-    p.slot1_phrase_map = P.String('9')
-    p.slot1_wild_map = P.String('1 1 1 9')
-    p.slot1_chance_map = P.String('9132')
-    p.slot1_accent_map = P.String('9555')
-    p.slot1_paths = P.PathList()
+    for slot in range(8):
+        def setslot(name, value, slot=slot):
+            p['slot{}_{}'.format(slot + 1, name)] = value
+        setslot('name', P.String('slot{}'.format(slot + 1)))
+        setslot('paths', P.PathList())
+        setslot('seed', P.Integer(0, **SEED_RANGE))
+        setslot('samples', P.Integer(1, range=(1, 15)))
+        setslot('phrase_strength', P.String('9'))
+        setslot('phrase_wild', P.String('0'))
+        setslot('note_chance', P.String('0'))
+        setslot('note_accent', P.String('0'))
+        setslot('note_variation', P.String('0'))
+        setslot('velocity_variation', P.String('0'))
 
-    p.slot2_name = P.String('snare')
-    p.slot2_seed = P.Integer(0, **SEED_RANGE)
-    p.slot2_samples = P.Integer(1, range=(1, 15))
-    p.slot2_phrase_map = P.String('9 9 9 5')
-    p.slot2_wild_map = P.String('1 1 5 9')
-    p.slot2_chance_map = P.String('21149214')
-    p.slot2_accent_map = P.String('53339333')
-    p.slot2_paths = P.PathList()
+    p.slot1_name.default = 'kick'
+    p.slot1_phrase_strength.default = '9'
+    p.slot1_phrase_wild.default = '0,1,0,9'
+    p.slot1_note_chance.default = '9132'
+    p.slot1_note_accent.default = '9555'
+    p.slot1_note_variation.default = '0555'
 
-    p.slot3_name = P.String('toms')
-    p.slot3_seed = P.Integer(0, **SEED_RANGE)
-    p.slot3_samples = P.Integer(3, range=(1, 15))
-    p.slot3_phrase_map = P.String('1 1 1 7')
-    p.slot3_wild_map = P.String('1 4 1 9')
-    p.slot3_chance_map = P.String('864')
-    p.slot3_accent_map = P.String('64215')
-    p.slot3_paths = P.PathList()
+    p.slot2_name.default = 'snare'
+    p.slot2_phrase_strength.default = '9,9,9,5'
+    p.slot2_phrase_wild.default = '1,1,5,9'
+    p.slot2_note_chance.default = '21149214'
+    p.slot2_note_accent.default = '53339333'
+    p.slot2_note_variation.default = '55550555'
 
-    p.slot4_name = P.String('rimshot')
-    p.slot4_seed = P.Integer(0, **SEED_RANGE)
-    p.slot4_samples = P.Integer(1, range=(1, 15))
-    p.slot4_phrase_map = P.String()
-    p.slot4_wild_map = P.String()
-    p.slot4_chance_map = P.String()
-    p.slot4_accent_map = P.String()
-    p.slot4_paths = P.PathList()
-
-    p.slot5_name = P.String('clap')
-    p.slot5_seed = P.Integer(0, **SEED_RANGE)
-    p.slot5_samples = P.Integer(1, range=(1, 15))
-    p.slot5_phrase_map = P.String()
-    p.slot5_wild_map = P.String()
-    p.slot5_chance_map = P.String()
-    p.slot5_accent_map = P.String()
-    p.slot5_paths = P.PathList()
-
-    p.slot6_name = P.String('hihat')
-    p.slot6_seed = P.Integer(0, **SEED_RANGE)
-    p.slot6_samples = P.Integer(1, range=(1, 15))
-    p.slot6_phrase_map = P.String()
-    p.slot6_wild_map = P.String()
-    p.slot6_chance_map = P.String()
-    p.slot6_accent_map = P.String()
-    p.slot6_paths = P.PathList()
-
-    p.slot7_name = P.String('crash')
-    p.slot7_seed = P.Integer(0, **SEED_RANGE)
-    p.slot7_samples = P.Integer(1, range=(1, 15))
-    p.slot7_phrase_map = P.String()
-    p.slot7_wild_map = P.String()
-    p.slot7_chance_map = P.String()
-    p.slot7_accent_map = P.String()
-    p.slot7_paths = P.PathList()
-
-    p.slot8_name = P.String('ride')
-    p.slot8_seed = P.Integer(0, **SEED_RANGE)
-    p.slot8_samples = P.Integer(1, range=(1, 15))
-    p.slot8_phrase_map = P.String()
-    p.slot8_wild_map = P.String()
-    p.slot8_chance_map = P.String()
-    p.slot8_accent_map = P.String()
-    p.slot8_paths = P.PathList()
+    p.slot3_name.default = 'toms'
+    p.slot3_phrase_strength.default = '1,1,1,7'
+    p.slot3_phrase_wild.default = '1,4,1,9'
+    p.slot3_note_chance.default = '864'
+    p.slot3_note_accent.default = '522'
+    p.slot3_note_variation.default = '64215'
 
 
 # -[ Project builder ]----------------------------------------------------------------------------
