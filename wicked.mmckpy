@@ -1,0 +1,339 @@
+#                                    _      _            _
+#                          __      _(_) ___| | _____  __| |
+#                          \ \ /\ / / |/ __| |/ / _ \/ _` |
+# Hear the drummer get...   \ V  V /| | (__|   <  __/ (_| |
+#                            \_/\_/ |_|\___|_|\_\___|\__,_|
+#
+
+from itertools import cycle
+from operator import add
+from random import Random
+
+import numpy as np
+import py
+import wavio
+
+from rv.api import m, NOTE, NOTECMD, Pattern
+
+
+# -----------------------------------------------------------------------------
+
+
+MAX_RAND = 2 ** 30
+SEED_RANGE = dict(range=(0, MAX_RAND))
+
+
+def set_parameters(p, P):
+
+    p.name = P.String(label='Project Name')
+    p.rhythm_seed = P.Integer(0, **SEED_RANGE)
+    p.sample_seed = P.Integer(0, **SEED_RANGE)
+    p.bpm = P.Integer(125, range=(60, 240))
+    p.swing = P.Integer(0, range=(0, 5))
+    p.phrases = P.String('4444 4444 4444 4444')
+    p.variations = P.Integer(1, range=(1, 16))
+
+    p.slot1_name = P.String('kick')
+    p.slot1_seed = P.Integer(0, **SEED_RANGE)
+    p.slot1_samples = P.Integer(1, range=(1, 15))
+    p.slot1_phrase_map = P.String('9')
+    p.slot1_wild_map = P.String('1 1 1 9')
+    p.slot1_chance_map = P.String('9132')
+    p.slot1_accent_map = P.String('9555')
+    p.slot1_paths = P.PathList()
+
+    p.slot2_name = P.String('snare')
+    p.slot2_seed = P.Integer(0, **SEED_RANGE)
+    p.slot2_samples = P.Integer(1, range=(1, 15))
+    p.slot2_phrase_map = P.String('9 9 9 5')
+    p.slot2_wild_map = P.String('1 1 5 9')
+    p.slot2_chance_map = P.String('21149214')
+    p.slot2_accent_map = P.String('53339333')
+    p.slot2_paths = P.PathList()
+
+    p.slot3_name = P.String('toms')
+    p.slot3_seed = P.Integer(0, **SEED_RANGE)
+    p.slot3_samples = P.Integer(3, range=(1, 15))
+    p.slot3_phrase_map = P.String('1 1 1 7')
+    p.slot3_wild_map = P.String('1 4 1 9')
+    p.slot3_chance_map = P.String('864')
+    p.slot3_accent_map = P.String('64215')
+    p.slot3_paths = P.PathList()
+
+    p.slot4_name = P.String('rimshot')
+    p.slot4_seed = P.Integer(0, **SEED_RANGE)
+    p.slot4_samples = P.Integer(1, range=(1, 15))
+    p.slot4_phrase_map = P.String()
+    p.slot4_wild_map = P.String()
+    p.slot4_chance_map = P.String()
+    p.slot4_accent_map = P.String()
+    p.slot4_paths = P.PathList()
+
+    p.slot5_name = P.String('clap')
+    p.slot5_seed = P.Integer(0, **SEED_RANGE)
+    p.slot5_samples = P.Integer(1, range=(1, 15))
+    p.slot5_phrase_map = P.String()
+    p.slot5_wild_map = P.String()
+    p.slot5_chance_map = P.String()
+    p.slot5_accent_map = P.String()
+    p.slot5_paths = P.PathList()
+
+    p.slot6_name = P.String('hihat')
+    p.slot6_seed = P.Integer(0, **SEED_RANGE)
+    p.slot6_samples = P.Integer(1, range=(1, 15))
+    p.slot6_phrase_map = P.String()
+    p.slot6_wild_map = P.String()
+    p.slot6_chance_map = P.String()
+    p.slot6_accent_map = P.String()
+    p.slot6_paths = P.PathList()
+
+    p.slot7_name = P.String('crash')
+    p.slot7_seed = P.Integer(0, **SEED_RANGE)
+    p.slot7_samples = P.Integer(1, range=(1, 15))
+    p.slot7_phrase_map = P.String()
+    p.slot7_wild_map = P.String()
+    p.slot7_chance_map = P.String()
+    p.slot7_accent_map = P.String()
+    p.slot7_paths = P.PathList()
+
+    p.slot8_name = P.String('ride')
+    p.slot8_seed = P.Integer(0, **SEED_RANGE)
+    p.slot8_samples = P.Integer(1, range=(1, 15))
+    p.slot8_phrase_map = P.String()
+    p.slot8_wild_map = P.String()
+    p.slot8_chance_map = P.String()
+    p.slot8_accent_map = P.String()
+    p.slot8_paths = P.PathList()
+
+
+# -----------------------------------------------------------------------------
+
+
+def build_project(p, c, project):
+    project.name = p.name or '{}-{}-synth'.format(p.rhythm_seed, p.sample_seed)
+    project.initial_bpm = p.bpm
+
+    note_in = project.new_module(m.MultiSynth, ignore_notes_with_zero_velocity=True)
+
+    rrandom = Random(p.rhythm_seed)
+    srandom = Random(p.sample_seed)
+    new_seed = lambda x: (srandom.randint(0, MAX_RAND) + x) % MAX_RAND
+    new_random = lambda x: Random(new_seed(x))
+    slot_srandom = [
+        new_random(p['slot{}_seed'.format(x)])
+        for x in range(1, 9)
+    ]
+    samplefinders = [
+        samplefinder(
+            p['slot{}_name'.format(x)],
+            p['slot{}_paths'.format(x)],
+            new_random(p['slot{}_seed'.format(x)]),
+        )
+        for x in range(1, 9)
+    ]
+    slot_rrandom = [
+        new_random(p['slot{}_seed'.format(x)] + p.rhythm_seed)
+        for x in range(1, 9)
+    ]
+    slot_notes = [[] for _ in range(8)]
+    slot_notegates = [[] for _ in range(8)]
+    slot_samplepaths = [[] for _ in range(8)]
+    slot_samplers = [[] for _ in range(8)]
+    slot_transposers = [[] for _ in range(8)]
+
+    def var(name, slot):
+        return p['slot{}_{}'.format(slot + 1, name)]
+
+    # Find samples; create groups.
+    for slot, (find_sample, samples) in enumerate(
+            zip(samplefinders, slot_samplepaths)):
+        name = var('name', slot)
+        sample_count = var('samples', slot)
+        for i in range(sample_count):
+            path = find_sample()
+            if not path:
+                continue
+            samples.append(path)
+        if not samples:
+            continue
+        group = c[name]
+
+    # Do this after creating slot-specific groups.
+    master_amp = project.new_module(m.Amplifier, name='master amp')
+    master_amp >> project.output
+    c.master.amp = (master_amp, 'volume')
+
+    # Create samplers; load samples; wire them up.
+    for slot, (paths, notegates, samplers, transposers) in enumerate(
+            zip(slot_samplepaths, slot_notegates, slot_samplers, slot_transposers)):
+        if not paths:
+            continue
+        name = var('name', slot)
+        group = c[name]
+        slot_amp = project.new_module(m.Amplifier, name='{} amp'.format(slot + 1))
+        slot_amp >> master_amp
+        group.amp = (slot_amp, 'volume')
+        notegates = slot_notegates[slot]
+        transposers = slot_transposers[slot]
+        for i, path in enumerate(paths):
+            # Wiring
+            notegate = project.new_module(m.MultiSynth, ignore_notes_with_zero_velocity=True, name='note gate')
+            transposer = project.new_module(m.MultiSynth, ignore_notes_with_zero_velocity=True, name='transposer')
+            sampler = project.new_module(m.Sampler, name='{}.{} - {}'.format(slot + 1, i + 1, path.basename))
+            notegates.append(notegate)
+            transposers.append(transposer)
+            samplers.append(sampler)
+            note_in >> notegate >> transposer >> sampler >> slot_amp
+            # Sample loading
+            sample = m.Sampler.Sample()
+            w = wavio.read(printed(str(path), 'Reading {} WAV'.format(name)))
+            nframes, nchannels = printed(w.data.shape, 'shape')
+            sample.rate = w.rate
+            sample.channels = {
+                1: m.Sampler.Channels.mono,
+                2: m.Sampler.Channels.stereo,
+            }[nchannels]
+            # TODO: convert to 32-bit float
+            if w.sampwidth == 2:
+                data = w.data
+                sample.format = m.Sampler.Format.int16
+            elif w.sampwidth == 3:
+                data = w.data >> 8
+                sample.format = m.Sampler.Format.int16
+                data = data.astype('int16')
+            printed((data.min(), data.max()), 'min/max')
+            sample.data = data.tobytes()
+            sample.finetune = 0
+            sample.relative_note = 16
+            sampler.samples[0] = sample
+            print()
+
+    # Assign notes
+    current_note = STARTING_NOTE
+    for slot, (notes, notegates) in enumerate(zip(slot_notes, slot_notegates)):
+        for notegate in notegates:
+            notes.append(current_note)
+            notegate.nv_curve.set_via_fn(lambda n: 0xff if n + 1 == current_note.value else 0x00)
+            current_note = NOTE(current_note + 1)
+
+    # Wire up transposers
+    for slot, transposers in enumerate(slot_transposers):
+        if not transposers:
+            continue
+        name = var('name', slot)
+        group = c[name]
+        transpose = m.MultiCtl.macro(project, *[(t, 'transpose') for t in transposers], name='transpose')
+        for mapping in transpose.mappings.values:
+            mapping.min, mapping.max = (128 - 32, 128 + 32)
+        finetune = m.MultiCtl.macro(project, *[(t, 'finetune') for t in transposers], name='finetune')
+        group.transpose = (transpose, 'value')
+        group.finetune = (finetune, 'value')
+        transpose.value = 0x4000
+        finetune.value = 0x4000
+
+    # Fill out UI to 8 controllers per slot
+    macro = project.new_module(m.MultiCtl, name='_')
+    for slot in range(8):
+        if not slot_samplers[slot]:
+            continue
+        name = var('name', slot)
+        group = c[name]
+        while len(group) < 8:
+            group['__{}__'.format(len(group) + 1)] = (macro, 'value')
+
+    # Swing pattern.
+    swing = Pattern(name='swing', tracks=1, x=0, y=-64)
+    project += swing
+    speeds = [6 + p.swing, 6 - p.swing]
+    for line, speed in zip(range(swing.lines), cycle(speeds)):
+        n = swing.data[line][0]
+        n.effect = 0x0f
+        n.val_yy = speed
+
+    # Variation trigger pattern.
+    variation_triggers = Pattern(name='variation triggers', tracks=1, x=0, y=-32)
+    variation_transposer = project.new_module(m.MultiSynth, name='variation transposer')
+    project += variation_triggers
+    for line in range(variation_triggers.lines):
+        n = variation_triggers.data[line][0]
+        n.note = NOTECMD.C0
+        n.vel = 129
+        n.module = variation_transposer.index + 1
+
+    variation_selector = m.MultiCtl.macro(
+        project, (variation_transposer, 'transpose'), name='variation')
+    variation_selector.gain = 256 + int(256 / (p.variations + 1))
+    mapping = variation_selector.mappings.values[0]
+    mapping.min, mapping.max = 128, 128 + p.variations
+    c.master.variation = (variation_selector, 'value')
+
+    # Initialize variations.
+    variation_gates = []
+    variation_patterns = []
+    for i in range(p.variations + 1):
+        pattern = Pattern(name=str(i + 1), tracks=16, x=0, y=32 * i)
+        project += pattern
+        variation_patterns.append(pattern)
+        notegate = project.new_module(m.MultiSynth, name='note gate')
+        notegate.nv_curve.set_via_fn(lambda n: 0xff if n == i else 0x00)
+        vgate = project.new_module(m.MultiSynth, name='variation gate')
+        variation_gates.append(vgate)
+        v2c = project.new_module(m.Velocity2Ctl, name='velocity switch')
+        v2c.out_controller = vgate.controllers['velocity'].number
+        variation_transposer >> notegate >> v2c >> vgate >> note_in
+        vgate.velocity = 256 if i == 0 else 0
+
+    # Perform variations.
+    def dummer(notes, random):
+        while True:
+            if random.random() > 0.5:
+                yield (random.choice(notes), random.randint(0, 128))
+            else:
+                yield (None, None)
+    for pattern, vgate in zip(variation_patterns, variation_gates):
+        for slot, (rrandom, notes) in enumerate(zip(slot_rrandom, slot_notes)):
+            if not notes:
+                continue
+            track = slot * 2
+            for line, (note, vel) in zip(range(pattern.lines), dummer(notes, rrandom)):
+                if note:
+                    n = pattern.data[line][track]
+                    n.note = note
+                    n.module = vgate.index + 1
+                    n.vel = 1 + vel
+
+    project.layout(factor=(2, 4))
+
+
+# -----------------------------------------------------------------------------
+
+
+FILE_URL_PREFIX = 'file://'
+STARTING_NOTE = NOTE.C4
+
+
+def printed(value, label=None):
+    if label:
+        print('{}: {!r}'.format(label, value))
+    else:
+        print(repr(value))
+    return value
+
+
+def samplefinder(name, paths, random):
+    all_paths = set()
+    for path in paths:
+        if path.startswith(FILE_URL_PREFIX):
+            path = path[len(FILE_URL_PREFIX):]
+        try:
+            all_paths.update(set(py.path.local(path).visit('*.wav')))
+        except py.error.ENOENT:
+            print('WARNING: path not found: {}'.format(path))
+            pass
+    all_paths = sorted(list(all_paths))
+    def fn():
+        choice = random.choice(all_paths) if all_paths else None
+        return choice
+    return fn
+
+
