@@ -309,8 +309,13 @@ def build_project(p, c, project):
 
     @mutation('synth', p.p_spectravoice)
     def spectravoice(track):
-        # TODO - construct random spectravoice table
-        pass
+        mod = generic_random_mod(track, m.SpectraVoice)
+        count = track.random.randint(1, len(mod.harmonics))
+        for harmonic in mod.harmonics[:count]:
+            harmonic.freq_hz = track.random.randint(0, 22050)
+            harmonic.volume = track.random.randint(0, 255)
+            harmonic.width = track.random.randint(0, 3)
+            harmonic.type = track.random.choice(list(m.SpectraVoice.HarmonicType))
 
     @mutation('effect', p.p_amplifier)
     def amplifier(track):
