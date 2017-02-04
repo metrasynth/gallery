@@ -244,9 +244,9 @@ def build_project(p, c, project):
                 last_mod_count = current_mod_count
             mutation_type = mrandom.choice(mutation_types)
             prob_name = 'p_{}s'.format(mutation_type)
-            if mrandom.randint(0, 100) <= p[prob_name]:
+            if mrandom.randint(1, 100) <= p[prob_name]:
                 fn = mrandom.choice([m for m in mutations if m.behavior == mutation_type])
-                if mrandom.randint(0, 100) <= fn.probability:
+                if mrandom.randint(1, 100) <= fn.probability:
                     compatible_tracks = [t for t in tracks if mutation_type in t.supported_mutations]
                     if compatible_tracks:
                         track = mrandom.choice(compatible_tracks)
