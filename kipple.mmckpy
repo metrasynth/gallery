@@ -27,6 +27,7 @@ def set_parameters(p, P):
     p.module_count_min = P.Integer(1, range=(1, 200))
     p.module_count_max = P.Integer(20, range=(1, 200))
     p.max_bifurcations = P.Integer(4, range=(2, 10))
+    p.max_cycles = P.Integer(10000, range=(1000, 100000))
 
     p.p_bifurcations = probability()
     p.p_terminations = probability()
@@ -230,7 +231,17 @@ def build_project(p, c, project):
 
     def go():
         module_count = printed(rmaster.randint(p.module_count_min, p.module_count_max))
-        while len(project.modules) - 2 < module_count:
+        loops = 0
+        last_mod_count = len(project.modules) - 2
+        while last_mod_count < module_count:
+            current_mod_count = len(project.modules) - 2
+            if last_mod_count == current_mod_count:
+                loops += 1
+                if loops > p.max_cycles:
+                    raise RuntimeError('Exhausted!')
+            else:
+                loops = 0
+                last_mod_count = current_mod_count
             mutation_type = mrandom.choice(mutation_types)
             prob_name = 'p_{}s'.format(mutation_type)
             if mrandom.randint(0, 100) <= p[prob_name]:
