@@ -241,8 +241,11 @@ def build_project(p, c, project):
         while len(group) < 8:
             group['__{}__'.format(len(group) + 1)] = (macro, 'value')
 
+    # General pattern stuff.
+    lines = pattern_lines(p.phrases)
+
     # Swing pattern.
-    swing = Pattern(name='swing', tracks=1, x=0, y=-64)
+    swing = Pattern(name='swing', tracks=1, x=0, y=-64, lines=lines)
     project += swing
     speeds = [6 + p.swing, 6 - p.swing]
     for line, speed in zip(range(swing.lines), cycle(speeds)):
@@ -251,7 +254,7 @@ def build_project(p, c, project):
         n.val_yy = speed
 
     # Variation trigger pattern.
-    variation_triggers = Pattern(name='variation triggers', tracks=1, x=0, y=-32)
+    variation_triggers = Pattern(name='variation triggers', tracks=1, x=0, y=-32, lines=lines)
     variation_transposer = project.new_module(m.MultiSynth, name='variation transposer')
     project += variation_triggers
     for line in range(variation_triggers.lines):
@@ -271,7 +274,7 @@ def build_project(p, c, project):
     variation_gates = []
     variation_patterns = []
     for i in range(p.variations + 1):
-        pattern = Pattern(name=str(i + 1), tracks=8, x=0, y=32 * i)
+        pattern = Pattern(name=str(i + 1), tracks=8, x=0, y=32 * i, lines=lines)
         project += pattern
         variation_patterns.append(pattern)
         notegate = project.new_module(m.MultiSynth, name='note gate')
@@ -291,14 +294,21 @@ def build_project(p, c, project):
         print('{} is now performing'.format(p.performer))
 
     # Perform variations.
-    def gentrack(pattern, mod, track, rrandom, notes):
+    def gentrack(pattern, mod, slot, rrandom, notes):
         performance = performer(
             notes=notes,
             random=rrandom,
+            p=p,
+            phrase_strength=var('phrase_strength', slot),
+            phrase_wild=var('phrase_wild', slot),
+            note_chance=var('note_chance', slot),
+            note_accent=var('note_accent', slot),
+            note_variation=var('note_variation', slot),
+            velocity_variation=var('phrase_strength', slot),
         )
         for line, (note, vel) in zip(range(pattern.lines), performance):
             if note:
-                n = pattern.data[line][track]
+                n = pattern.data[line][slot]
                 n.note = note
                 n.module = vgate.index + 1
                 n.vel = 1 + vel
@@ -309,7 +319,7 @@ def build_project(p, c, project):
             gentrack(
                 pattern=pattern,
                 mod=vgate,
-                track=slot,
+                slot=slot,
                 rrandom=rrandom,
                 notes=notes,
             )
@@ -330,12 +340,26 @@ def performer(fn):
 
 
 @performer
-def dummer(notes, random, **kwargs):
-    while True:
+def phraser(notes, random, p, phrase_strength, phrase_wild, note_chance, note_accent, note_variation, velocity_variation):
+    line = 0
+    length = pattern_lines(p.phrases)
+    while line < length:
+        yield (None, None)
+        line += 1
+
+
+@performer
+def dummer(notes, random, p, **kwargs):
+    for _ in range(pattern_lines(p.phrases)):
         if random.random() > 0.5:
             yield (random.choice(notes), random.randint(0, 128))
         else:
             yield (None, None)
+
+
+@performer
+def silence(p, **kwargs):
+    return [(None, None)] * pattern_lines(p.phrases)
 
 
 # -[ Utils ]----------------------------------------------------------------------------
@@ -371,3 +395,9 @@ def samplefinder(name, paths, random):
     return fn
 
 
+def pattern_lines(phrases):
+    length = 0
+    for c in phrases:
+        if c in '123456789':
+            length += int(c)
+    return length
