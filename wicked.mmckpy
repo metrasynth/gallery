@@ -30,6 +30,7 @@ def set_parameters(p, P):
     p.sample_seed = P.Integer(0, **SEED_RANGE)
     p.bpm = P.Integer(125, range=(60, 240))
     p.swing = P.Integer(0, range=(0, 5))
+    p.accent_threshold = P.Integer(127, range=(0, 255))
     p.phrases = P.String('4444 4444 4444 4444')
     p.variations = P.Integer(1, range=(1, 16))
 
@@ -175,15 +176,41 @@ def build_project(p, c, project):
         group.amp = (slot_amp, 'volume')
         notegates = slot_notegates[slot]
         transposers = slot_transposers[slot]
+        # Accent switch
+        accents = project.new_module(
+            m.MultiSynth, name='accents', ignore_notes_with_zero_velocity=True)
+        no_accents = project.new_module(
+            m.MultiSynth,
+            name='no accents',
+            velocity=0,
+            vv_curve_active=True,
+            ignore_notes_with_zero_velocity=True,
+        )
+        no_accents.vv_curve.set_via_fn(lambda v: min(p.accent_threshold, v))
+        accent_gates = [accents, no_accents]
+        accent_switch = m.MultiCtl.macro(
+            project,
+            (accents, 'velocity'),
+            (no_accents, 'velocity'),
+            name='accent',
+        )
+        accent_switch.quantization = 2
+        mapping = accent_switch.mappings.values[1]
+        mapping.min, mapping.max = mapping.max, mapping.min
+        accent_switch.value = 32768
+        accented = project.new_module(m.MultiSynth, name='accented', ignore_notes_with_zero_velocity=True)
+        accent_switch >> accent_gates
+        note_in >> accent_gates >> accented
+        group.accent = (accent_switch, 'value')
         for i, path in enumerate(paths):
-            # Wiring
-            notegate = project.new_module(m.MultiSynth, ignore_notes_with_zero_velocity=True, name='note gate')
-            transposer = project.new_module(m.MultiSynth, ignore_notes_with_zero_velocity=True, name='transposer')
+            # Wiring.
+            notegate = project.new_module(m.MultiSynth, name='note gate', ignore_notes_with_zero_velocity=True)
+            transposer = project.new_module(m.MultiSynth, name='transposer', ignore_notes_with_zero_velocity=True)
             sampler = project.new_module(m.Sampler, name='{}.{} - {}'.format(slot + 1, i + 1, path.basename))
             notegates.append(notegate)
             transposers.append(transposer)
             samplers.append(sampler)
-            note_in >> notegate >> transposer >> sampler >> slot_amp
+            accented >> notegate >> transposer >> sampler >> slot_amp
             # Sample loading
             sample = m.Sampler.Sample()
             w = wavio.read(printed(str(path), 'Reading {} WAV'.format(name)))
