@@ -16,7 +16,7 @@ import wavio
 from rv.api import m, NOTE, NOTECMD, Pattern
 
 
-# -----------------------------------------------------------------------------
+# -[ Parameters ]----------------------------------------------------------------------------
 
 
 MAX_RAND = 2 ** 30
@@ -31,6 +31,7 @@ def set_parameters(p, P):
     p.bpm = P.Integer(125, range=(60, 240))
     p.swing = P.Integer(0, range=(0, 5))
     p.accent_threshold = P.Integer(127, range=(0, 255))
+    p.performer = P.String(PERFORMERS[0], choices=PERFORMERS)
     p.phrases = P.String('4444 4444 4444 4444')
     p.variations = P.Integer(1, range=(1, 16))
 
@@ -107,7 +108,7 @@ def set_parameters(p, P):
     p.slot8_paths = P.PathList()
 
 
-# -----------------------------------------------------------------------------
+# -[ Project builder ]----------------------------------------------------------------------------
 
 
 def build_project(p, c, project):
@@ -213,8 +214,9 @@ def build_project(p, c, project):
             accented >> notegate >> transposer >> sampler >> slot_amp
             # Sample loading
             sample = m.Sampler.Sample()
-            w = wavio.read(printed(str(path), 'Reading {} WAV'.format(name)))
-            nframes, nchannels = printed(w.data.shape, 'shape')
+            printed(path.basename, 'Reading {}'.format(name))
+            w = wavio.read(str(path))
+            nframes, nchannels = printed(w.data.shape, 'shape', mute=True)
             sample.rate = w.rate
             sample.channels = {
                 1: m.Sampler.Channels.mono,
@@ -228,13 +230,13 @@ def build_project(p, c, project):
                 data = w.data >> 8
                 sample.format = m.Sampler.Format.int16
                 data = data.astype('int16')
-            printed((data.min(), data.max()), 'min/max')
+            printed((data.min(), data.max()), 'min/max', mute=True)
             sample.data = data.tobytes()
             sample.finetune = 0
             sample.relative_note = 16
             sampler.samples[0] = sample
             c.samples['{}_{}_vol'.format(name, i + 1)] = (sampler, 'volume')
-            print()
+            printed('', mute=True)
 
     # Assign notes
     current_note = STARTING_NOTE
@@ -299,7 +301,7 @@ def build_project(p, c, project):
     variation_gates = []
     variation_patterns = []
     for i in range(p.variations + 1):
-        pattern = Pattern(name=str(i + 1), tracks=16, x=0, y=32 * i)
+        pattern = Pattern(name=str(i + 1), tracks=8, x=0, y=32 * i)
         project += pattern
         variation_patterns.append(pattern)
         notegate = project.new_module(m.MultiSynth, name='note gate')
@@ -311,40 +313,74 @@ def build_project(p, c, project):
         variation_transposer >> notegate >> v2c >> vgate >> note_in
         vgate.velocity = 256 if i == 0 else 0
 
+    performer = globals().get(p.performer, None)
+    if not callable(performer):
+        performer = dummer
+        print("{} didn't show up for work; dummer will perform instead".format(p.performer))
+    else:
+        print('{} is now performing'.format(p.performer))
+
     # Perform variations.
-    def dummer(notes, random):
-        while True:
-            if random.random() > 0.5:
-                yield (random.choice(notes), random.randint(0, 128))
-            else:
-                yield (None, None)
+    def gentrack(pattern, mod, track, rrandom, notes):
+        performance = performer(
+            notes=notes,
+            random=rrandom,
+        )
+        for line, (note, vel) in zip(range(pattern.lines), performance):
+            if note:
+                n = pattern.data[line][track]
+                n.note = note
+                n.module = vgate.index + 1
+                n.vel = 1 + vel
     for pattern, vgate in zip(variation_patterns, variation_gates):
         for slot, (rrandom, notes) in enumerate(zip(slot_rrandom, slot_notes)):
             if not notes:
                 continue
-            track = slot * 2
-            for line, (note, vel) in zip(range(pattern.lines), dummer(notes, rrandom)):
-                if note:
-                    n = pattern.data[line][track]
-                    n.note = note
-                    n.module = vgate.index + 1
-                    n.vel = 1 + vel
+            gentrack(
+                pattern=pattern,
+                mod=vgate,
+                track=slot,
+                rrandom=rrandom,
+                notes=notes,
+            )
 
+    # Make it pretty!
     project.layout(factor=(2, 4))
 
 
-# -----------------------------------------------------------------------------
+# -[ Performers ]----------------------------------------------------------------------------
+
+
+PERFORMERS = []
+
+
+def performer(fn):
+    PERFORMERS.append(fn.__name__)
+    return fn
+
+
+@performer
+def dummer(notes, random, **kwargs):
+    while True:
+        if random.random() > 0.5:
+            yield (random.choice(notes), random.randint(0, 128))
+        else:
+            yield (None, None)
+
+
+# -[ Utils ]----------------------------------------------------------------------------
 
 
 FILE_URL_PREFIX = 'file://'
 STARTING_NOTE = NOTE.C4
 
 
-def printed(value, label=None):
-    if label:
-        print('{}: {!r}'.format(label, value))
-    else:
-        print(repr(value))
+def printed(value, label=None, mute=False):
+    if not mute:
+        if label:
+            print('{}: {!r}'.format(label, value))
+        else:
+            print(repr(value))
     return value
 
 
