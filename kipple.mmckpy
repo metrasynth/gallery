@@ -350,8 +350,7 @@ def build_project(p, c, project):
 
     @mutation('effect', p.p_lfo)
     def lfo(track):
-        # TODO
-        pass
+        generic_random_mod(track, m.Lfo)
 
     @mutation('effect', p.p_loop)
     def loop(track):
