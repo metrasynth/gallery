@@ -206,6 +206,7 @@ def build_project(p, c, project):
             sample.finetune = 0
             sample.relative_note = 16
             sampler.samples[0] = sample
+            c.samples['{}_{}_vol'.format(name, i + 1)] = (sampler, 'volume')
             print()
 
     # Assign notes
