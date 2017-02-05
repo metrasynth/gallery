@@ -4,12 +4,10 @@
 # Hear the drummer get...   \ V  V /| | (__|   <  __/ (_| |
 #                            \_/\_/ |_|\___|_|\_\___|\__,_|
 #
-
+from collections import OrderedDict
 from itertools import cycle
-from operator import add
 from random import Random
 
-import numpy as np
 import py
 import wavio
 
@@ -31,16 +29,20 @@ DIGITS = [
 
 def set_parameters(p, P):
 
+    print('Available performers: {}'.format(', '.join(PERFORMERS)))
+
     p.name = P.String(label='Project Name')
     p.rhythm_seed = P.Integer(0, **SEED_RANGE)
     p.sample_seed = P.Integer(0, **SEED_RANGE)
     p.bpm = P.Integer(125, range=(60, 240))
     p.swing = P.Integer(0, range=(0, 5))
     p.accent_threshold = P.Integer(127, range=(0, 255))
-    p.performer = P.String(PERFORMERS[0], choices=PERFORMERS)
     p.digits = P.String(DIGITS[0], choices=DIGITS)
-    p.measures = P.String('4444,4444,4444,4444')
     p.variations = P.Integer(1, range=(1, 16))
+    p.measures = P.String('4444,4444,4444,4444')
+    p.global_performance = P.KeyValuePairs([
+        ('performer', PERFORMERS[0]),
+    ])
 
     for slot in range(8):
         def setslot(name, value, slot=slot):
@@ -49,37 +51,45 @@ def set_parameters(p, P):
         setslot('paths', P.PathList())
         setslot('seed', P.Integer(0, **SEED_RANGE))
         setslot('samples', P.Integer(1, range=(1, 15)))
-        setslot('measure_strength', P.String('9'))
-        setslot('measure_wild', P.String('0'))
-        setslot('beat_accent', P.String('0'))
-        setslot('note_chance', P.String('0'))
-        setslot('note_accent', P.String('0'))
-        setslot('note_variation', P.String('0'))
-        setslot('velocity_variation', P.String('0'))
+        setslot('performance', P.KeyValuePairs(OrderedDict([
+            ('measure_strength', '0'),
+            ('measure_wild', '0'),
+            ('beat_accent', '0'),
+            ('note_chance', '0'),
+            ('note_accent', '0'),
+            ('note_variation', '0'),
+            ('velocity_variation', '0'),
+        ])))
 
     p.slot1_name.default = 'kick'
-    p.slot1_measure_strength.default = '9'
-    p.slot1_measure_wild.default = '0109'
-    p.slot1_beat_accent.default = '9'
-    p.slot1_note_chance.default = '9132'
-    p.slot1_note_accent.default = '9555'
-    p.slot1_note_variation.default = '0555'
+    p.slot1_performance.default.update(
+        measure_strength='9',
+        measure_wild='0109',
+        beat_accent='9',
+        note_chance='9132',
+        note_accent='9555',
+        note_variation='0555',
+    )
 
     p.slot2_name.default = 'snare'
-    p.slot2_measure_strength.default = '9995'
-    p.slot2_measure_wild.default = '1159'
-    p.slot2_beat_accent.default = '09'
-    p.slot2_note_chance.default = '21149214'
-    p.slot2_note_accent.default = '53339333'
-    p.slot2_note_variation.default = '55550555'
+    p.slot2_performance.default.update(
+        measure_strength='9995',
+        measure_wild='1159',
+        beat_accent='09',
+        note_chance='21149214',
+        note_accent='53339333',
+        note_variation='55550555',
+    )
 
     p.slot3_name.default = 'toms'
-    p.slot3_measure_strength.default = '1,1,1,7'
-    p.slot3_measure_wild.default = '1,4,1,9'
-    p.slot3_beat_accent.default = '5'
-    p.slot3_note_chance.default = '864'
-    p.slot3_note_accent.default = '522'
-    p.slot3_note_variation.default = '64215'
+    p.slot3_performance.default.update(
+        measure_strength='1117',
+        measure_wild='1419',
+        beat_accent='5',
+        note_chance='864',
+        note_accent='522',
+        note_variation='64215',
+    )
 
 
 # -[ Project builder ]----------------------------------------------------------------------------
@@ -290,17 +300,19 @@ def build_project(p, c, project):
         variation_transposer >> notegate >> v2c >> vgate >> note_in
         vgate.velocity = 256 if i == 0 else 0
 
-    performer = globals().get(p.performer, None)
-    if not callable(performer):
-        performer = dummer
-        print("{} didn't show up for work; dummer will perform instead".format(p.performer))
-    else:
-        print('{} is now performing'.format(p.performer))
 
     # Perform variations.
     def gentrack(pattern, mod, slot, rrandom, notes):
         def v(name):
-            return list(decoded(var(name, slot), p.digits))
+            performance = dict(p.global_performance)
+            performance.update(var('performance', slot))
+            return performance[name]
+        def dv(name):
+            return list(decoded(v(name), p.digits))
+        performer = globals().get(v('performer'), None)
+        if not callable(performer):
+            print("{} didn't show up for work; dummer will perform instead".format(v('performer')))
+            performer = dummer
         performance = performer(
             pattern=pattern,
             mod=mod,
@@ -308,13 +320,13 @@ def build_project(p, c, project):
             random=rrandom,
             notes=notes,
             p=p,
-            measure_strength=v('measure_strength'),
-            measure_wild=v('measure_wild'),
-            beat_accent=v('beat_accent'),
-            note_chance=v('note_chance'),
-            note_accent=v('note_accent'),
-            note_variation=v('note_variation'),
-            velocity_variation=v('measure_strength'),
+            measure_strength=dv('measure_strength'),
+            measure_wild=dv('measure_wild'),
+            beat_accent=dv('beat_accent'),
+            note_chance=dv('note_chance'),
+            note_accent=dv('note_accent'),
+            note_variation=dv('note_variation'),
+            velocity_variation=dv('measure_strength'),
         )
         for line, (note, vel) in zip(range(pattern.lines), performance):
             if note:
