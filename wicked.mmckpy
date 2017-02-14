@@ -26,12 +26,24 @@ DIGITS = [
     '0123456789abcdefghijklmnopqrstuvwxyz',
 ]
 
+SLOT_KIT_NOTES = [
+    ['C3'],  # kick
+    ['D3', 'E3'],  # snare
+    ['C4', 'A3', 'G3'],  # toms
+    ['G4', 'c4'],  # crash1
+    ['E4', 'A4'],  # crash2
+    ['a1', 'D2'],  # hihat
+    ['B4', 'd4', 'F4'],  # ride
+    [],
+]
+
 
 def set_parameters(p, P):
 
     print('Available performers: {}'.format(', '.join(PERFORMERS)))
 
     p.name = P.String(label='Project Name')
+    p.kit_mode = P.Integer(0, range=(0, 1))
     p.rhythm_seed = P.Integer(0, **SEED_RANGE)
     p.sample_seed = P.Integer(0, **SEED_RANGE)
     p.bpm = P.Integer(125, range=(60, 240))
@@ -223,12 +235,19 @@ def build_project(p, c, project):
             printed('', mute=True)
 
     # Assign notes
-    current_note = STARTING_NOTE
-    for slot, (notes, notegates) in enumerate(zip(slot_notes, slot_notegates)):
-        for notegate in notegates:
-            notes.append(current_note)
-            notegate.nv_curve.set_via_fn(lambda n: 0xff if n + 1 == current_note.value else 0x00)
-            current_note = NOTE(current_note + 1)
+    if p.kit_mode:
+        for slot, (notes, notegates, kitnotes) in enumerate(zip(slot_notes, slot_notegates, SLOT_KIT_NOTES)):
+            for current_note, notegate in zip(kitnotes, notegates):
+                current_note = getattr(NOTE, current_note)
+                notes.append(current_note)
+                notegate.nv_curve.set_via_fn(lambda n: 0xff if n + 1 == current_note.value else 0x00)
+    else:
+        current_note = STARTING_NOTE
+        for slot, (notes, notegates) in enumerate(zip(slot_notes, slot_notegates)):
+            for notegate in notegates:
+                notes.append(current_note)
+                notegate.nv_curve.set_via_fn(lambda n: 0xff if n + 1 == current_note.value else 0x00)
+                current_note = NOTE(current_note + 1)
 
     # Wire up transposers
     for slot, transposers in enumerate(slot_transposers):
