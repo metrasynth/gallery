@@ -11,7 +11,7 @@ from itertools import cycle
 from random import Random
 
 import py
-import wavio
+from scipy.io import wavfile
 
 from rv.api import m, NOTE, NOTECMD, Pattern
 
@@ -213,28 +213,28 @@ def build_project(p, c, project):
             # Sample loading
             sample = m.Sampler.Sample()
             printed(path.basename, 'Reading {}'.format(name))
-            w = wavio.read(str(path))
-            nframes, nchannels = printed(w.data.shape, 'shape', mute=True)
-            sample.rate = w.rate
+            freq, snd = wavfile.read(str(path))
+            if snd.dtype.name == 'int16':
+                sample.format = m.Sampler.Format.int16
+            elif snd.dtype.name == 'float32':
+                sample.format = m.Sampler.Format.float32
+            else:
+                raise Exception('Not supported')
+            if len(snd.shape) == 1:
+                size, = snd.shape
+                channels = 1
+            else:
+                size, channels = snd.shape
+            sample.rate = freq
             sample.channels = {
                 1: m.Sampler.Channels.mono,
                 2: m.Sampler.Channels.stereo,
-            }[nchannels]
-            # TODO: convert to 32-bit float
-            if w.sampwidth == 2:
-                data = w.data
-                sample.format = m.Sampler.Format.int16
-            elif w.sampwidth == 3:
-                data = w.data >> 8
-                sample.format = m.Sampler.Format.int16
-                data = data.astype('int16')
-            printed((data.min(), data.max()), 'min/max', mute=True)
-            sample.data = data.tobytes()
+            }[channels]
+            sample.data = snd.data.tobytes()
             sample.finetune = 0
             sample.relative_note = 16
             sampler.samples[0] = sample
             c.samples['{}_{}_vol'.format(name, i + 1)] = (sampler, 'volume')
-            printed('', mute=True)
 
     # Assign notes
     if p.kit_mode:
