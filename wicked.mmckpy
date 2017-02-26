@@ -6,12 +6,12 @@ Hear the drummer get...   \ V  V /| | (__|   <  __/ (_| |
                            \_/\_/ |_|\___|_|\_\___|\__,_|
 
 """
+
 from collections import OrderedDict
 from itertools import cycle
 from random import Random
 
 import py
-from scipy.io import wavfile
 
 from rv.api import m, NOTE, NOTECMD, Pattern
 
@@ -125,7 +125,6 @@ def build_project(p, c, project):
     ]
     samplefinders = [
         samplefinder(
-            p['slot{}_name'.format(x)],
             p['slot{}_paths'.format(x)],
             new_random(p['slot{}_seed'.format(x)]),
         )
@@ -211,29 +210,8 @@ def build_project(p, c, project):
             samplers.append(sampler)
             accented >> notegate >> transposer >> sampler >> slot_amp
             # Sample loading
-            sample = m.Sampler.Sample()
             printed(path.basename, 'Reading {}'.format(name))
-            freq, snd = wavfile.read(str(path))
-            if snd.dtype.name == 'int16':
-                sample.format = m.Sampler.Format.int16
-            elif snd.dtype.name == 'float32':
-                sample.format = m.Sampler.Format.float32
-            else:
-                raise Exception('Not supported')
-            if len(snd.shape) == 1:
-                size, = snd.shape
-                channels = 1
-            else:
-                size, channels = snd.shape
-            sample.rate = freq
-            sample.channels = {
-                1: m.Sampler.Channels.mono,
-                2: m.Sampler.Channels.stereo,
-            }[channels]
-            sample.data = snd.data.tobytes()
-            sample.finetune = 0
-            sample.relative_note = 16
-            sampler.samples[0] = sample
+            load_wav_to_sampler_slot(path, sampler, 0, finetune=0, relative_note=16)
             c.samples['{}_{}_vol'.format(name, i + 1)] = (sampler, 'volume')
 
     # Assign notes
@@ -435,7 +413,7 @@ def printed(value, label=None, mute=False):
     return value
 
 
-def samplefinder(name, paths, random):
+def samplefinder(paths, random):
     all_paths = set()
     for path in paths:
         if path.startswith(FILE_URL_PREFIX):
@@ -482,3 +460,35 @@ def decoded(values, digits):
 
 def cyclevalue(values, line):
     return values[line % len(values)]
+
+
+# -[ WAV loading ]----------------------------------------------------------------------
+
+
+from scipy.io import wavfile
+
+
+def load_wav_to_sampler_slot(path, sampler, slot, **kwargs):
+    sample = sampler.Sample()
+    freq, snd = wavfile.read(str(path))
+    if snd.dtype.name == 'int16':
+        sample.format = sampler.Format.int16
+    elif snd.dtype.name == 'float32':
+        sample.format = sampler.Format.float32
+    else:
+        raise Exception('Not supported')
+    if len(snd.shape) == 1:
+        size, = snd.shape
+        channels = 1
+    else:
+        size, channels = snd.shape
+    sample.rate = freq
+    sample.channels = {
+        1: m.Sampler.Channels.mono,
+        2: m.Sampler.Channels.stereo,
+    }[channels]
+    sample.data = snd.data.tobytes()
+    for key, value in kwargs.items():
+        setattr(sample, key, value)
+    sampler.samples[slot] = sample
+    return sample
