@@ -77,6 +77,7 @@ def set_parameters(p, P):
     p.p_generator = probability()
     p.p_kicker = probability()
     p.p_sampler = probability()
+    p.sampler_paths = P.PathList()
     p.p_spectravoice = probability()
 
     p.p_amplifier = probability()
@@ -184,6 +185,9 @@ def build_project(p, c, project):
 
     def randomize_controllers(mod, random, skip=set()):
         choices = sorted(list(set(mod.controllers) - skip))
+        for ctlname, ctl in mod.controllers.items():
+            if not ctl.attached(mod):
+                choices.remove(ctlname)
         print('------------', choices)
         count = random.randint(0, len(choices))
         for _ in range(count):
@@ -243,8 +247,11 @@ def build_project(p, c, project):
                     return name
         all_ctls = []
         for module in project.modules[1:]:
-            for controller in module.controllers:
-                all_ctls.append((module, controller))
+            for ctlname, ctl in module.controllers.items():
+                if ctl.attached(module):
+                    all_ctls.append((module, ctlname))
+                else:
+                    print('skipping', module, ctlname)
         nrandom.shuffle(all_ctls)
         for groupnum in range(8):
             groupname = gen_name()
@@ -328,9 +335,11 @@ def build_project(p, c, project):
 
     @mutation('synth', p.p_sampler)
     def sampler(track):
-        # TODO - pull a sample from a corpus of random samples
-        # TODO: waveform generation
-        pass
+        mod = generic_random_mod(track, m.Sampler)
+        finder = samplefinder(p.sampler_paths, track.random)
+        path = finder()
+        print('Loading path', path)
+        load_wav_to_sampler_slot(path, mod, 0)
 
     @mutation('synth', p.p_spectravoice)
     def spectravoice(track):
@@ -473,3 +482,56 @@ def build_project(p, c, project):
 
     go()
     print('Going... going... gone!')
+
+
+
+# -[ WAV loading ]----------------------------------------------------------------------
+
+
+import py
+from scipy.io import wavfile
+
+FILE_URL_PREFIX = 'file://'
+
+
+def load_wav_to_sampler_slot(path, sampler, slot, **kwargs):
+    sample = sampler.Sample()
+    freq, snd = wavfile.read(str(path))
+    if snd.dtype.name == 'int16':
+        sample.format = sampler.Format.int16
+    elif snd.dtype.name == 'float32':
+        sample.format = sampler.Format.float32
+    else:
+        raise Exception('Not supported')
+    if len(snd.shape) == 1:
+        size, = snd.shape
+        channels = 1
+    else:
+        size, channels = snd.shape
+    sample.rate = freq
+    sample.channels = {
+        1: m.Sampler.Channels.mono,
+        2: m.Sampler.Channels.stereo,
+    }[channels]
+    sample.data = snd.data.tobytes()
+    for key, value in kwargs.items():
+        setattr(sample, key, value)
+    sampler.samples[slot] = sample
+    return sample
+
+
+def samplefinder(paths, random):
+    all_paths = set()
+    for path in paths:
+        if path.startswith(FILE_URL_PREFIX):
+            path = path[len(FILE_URL_PREFIX):]
+        try:
+            all_paths.update(set(py.path.local(path).visit('*.wav')))
+        except py.error.ENOENT:
+            print('WARNING: path not found: {}'.format(path))
+            pass
+    all_paths = sorted(list(all_paths))
+    def fn():
+        choice = random.choice(all_paths) if all_paths else None
+        return choice
+    return fn
