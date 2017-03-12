@@ -338,8 +338,9 @@ def build_project(p, c, project):
         mod = generic_random_mod(track, m.Sampler)
         finder = samplefinder(p.sampler_paths, track.random)
         path = finder()
-        print('Loading path', path)
-        load_wav_to_sampler_slot(path, mod, 0)
+        if path:
+            print('Loading path', path)
+            load_wav_to_sampler_slot(path, mod, 0)
 
     @mutation('synth', p.p_spectravoice)
     def spectravoice(track):
