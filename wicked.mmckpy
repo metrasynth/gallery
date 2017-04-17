@@ -48,8 +48,9 @@ def set_parameters(p, P):
     p.kit_mode = P.Integer(0, range=(0, 1))
     p.rhythm_seed = P.Integer(0, **SEED_RANGE)
     p.sample_seed = P.Integer(0, **SEED_RANGE)
-    p.bpm = P.Integer(125, range=(60, 240))
-    p.swing = P.Integer(0, range=(0, 5))
+    p.bpm = P.Integer(500, range=(20, 999))
+    p.tpl = P.Integer(24, range=(1, 32))
+    p.swing = P.Integer(0, range=(0, 7))
     p.accent_threshold = P.Integer(127, range=(0, 255))
     p.digits = P.String(DIGITS[0], choices=DIGITS)
     p.variations = P.Integer(1, range=(1, 16))
@@ -112,6 +113,7 @@ def set_parameters(p, P):
 def build_project(p, c, project):
     project.name = p.name or '{}-{}-synth'.format(p.rhythm_seed, p.sample_seed)
     project.initial_bpm = p.bpm
+    project.initial_tpl = p.tpl
 
     note_in = project.new_module(m.MultiSynth, ignore_notes_with_zero_velocity=True)
 
@@ -260,7 +262,7 @@ def build_project(p, c, project):
     # Swing pattern.
     swing = Pattern(name='swing', tracks=1, x=0, y=-64, lines=lines)
     project += swing
-    speeds = [6 + p.swing, 6 - p.swing]
+    speeds = [p.tpl + p.swing, p.tpl - p.swing]
     for line, speed in zip(range(swing.lines), cycle(speeds)):
         n = swing.data[line][0]
         n.effect = 0x0f
