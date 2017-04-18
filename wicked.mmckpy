@@ -13,7 +13,7 @@ from random import Random
 
 import py
 
-from rv.api import m, NOTE, NOTECMD, Pattern
+from rv.api import m, NOTE, NOTECMD, Pattern, PatternClone
 
 
 # -[ Parameters ]----------------------------------------------------------------------------
@@ -55,6 +55,8 @@ def set_parameters(p, P):
     p.digits = P.String(DIGITS[0], choices=DIGITS)
     p.variations = P.Integer(1, range=(1, 16))
     p.measures = P.String('4444,4444,4444,4444')
+    p.loops = P.Integer(1, range=(1, 32))
+
     p.global_performance = P.KeyValuePairs([
         ('performer', PERFORMERS[0]),
     ])
@@ -346,6 +348,16 @@ def build_project(p, c, project):
                 rrandom=rrandom,
                 notes=notes,
             )
+
+    # Loop patterns.
+    for i, pattern in enumerate(project.patterns[:]):
+        if isinstance(pattern, Pattern):
+            for loop in range(1, p.loops):
+                project += PatternClone(
+                    source=i,
+                    x=pattern.x + (pattern.lines * loop),
+                    y=pattern.y,
+                )
 
     # Make it pretty!
     project.layout(factor=(2, 4))
