@@ -48,6 +48,7 @@ def set_parameters(p, P):
     p.kit_mode = P.Integer(0, range=(0, 1))
     p.rhythm_seed = P.Integer(0, **SEED_RANGE)
     p.sample_seed = P.Integer(0, **SEED_RANGE)
+    p.relative_note = P.Integer(48, (0, 128))
     p.bpm = P.Integer(500, range=(20, 999))
     p.tpl = P.Integer(24, range=(1, 32))
     p.swing = P.Integer(0, range=(0, 7))
@@ -215,7 +216,7 @@ def build_project(p, c, project):
             accented >> notegate >> transposer >> sampler >> slot_amp
             # Sample loading
             printed(path.basename, 'Reading {}'.format(name))
-            load_wav_to_sampler_slot(path, sampler, 0, finetune=0, relative_note=16)
+            load_wav_to_sampler_slot(path, sampler, 0, finetune=0, relative_note=p.relative_note)
             c.samples['{}_{}_vol'.format(name, i + 1)] = (sampler, 'volume')
 
     # Assign notes
