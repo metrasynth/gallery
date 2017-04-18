@@ -114,9 +114,16 @@ def set_parameters(p, P):
 
 
 def udc_assignments(p):
-    return [
-        'master.variation',
-    ]
+    yield 'master.variation'
+    def var(name, slot):
+        return p['slot{}_{}'.format(slot + 1, name)]
+    for ctl in ['transpose', 'finetune', 'amp']:
+        for slot in range(8):
+            paths = var('paths', slot)
+            if not paths:
+                continue
+            name = var('name', slot)
+            yield '{}.{}'.format(name, ctl)
 
 
 def build_project(p, c, project):
