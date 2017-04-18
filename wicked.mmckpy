@@ -113,6 +113,12 @@ def set_parameters(p, P):
 # -[ Project builder ]----------------------------------------------------------------------------
 
 
+def udc_assignments(p):
+    return [
+        'master.variation',
+    ]
+
+
 def build_project(p, c, project):
     project.name = p.name or '{}-{}-synth'.format(p.rhythm_seed, p.sample_seed)
     project.initial_bpm = p.bpm
