@@ -1,3 +1,5 @@
 *.mmck.py-*.sun*
 *.mmckpy-*.sun*
 *.mmck-*.sun*
+*.wav
+*.wav.*
