@@ -35,7 +35,7 @@ total, absolute kippleization.
 from random import Random
 
 from rv.api import m
-from rv.controller import Range
+from rv.controller import DependentRange, Range
 
 
 # -----------------------------------------------------------------------------
@@ -194,13 +194,16 @@ def build_project(p, c, project):
             ctl_name = random.choice(choices)
             choices.remove(ctl_name)
             ctl = mod.controllers[ctl_name]
-            if isinstance(ctl.value_type, Range):
-                value = random.randint(ctl.value_type.min, ctl.value_type.max)
-            elif ctl.value_type is bool:
+            t = ctl.value_type
+            if isinstance(t, DependentRange):
+                t = t.parent(mod)
+            if isinstance(t, Range):
+                value = random.randint(t.min, t.max)
+            elif t is bool:
                 value = random.choice([True, False])
             else:
-                print(ctl.value_type)
-                value = random.choice(list(ctl.value_type))
+                print(t)
+                value = random.choice(list(t))
             print('setting {}.{} to {}'.format(mod, ctl_name, value))
             setattr(mod, ctl_name, value)
 
