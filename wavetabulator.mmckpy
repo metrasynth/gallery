@@ -1,0 +1,169 @@
+"""
+I am WaveTabulator, an n-dimensional (*) wavetable-inspired synthesizer constructor.
+
+You select the number of dimensions, the size of the dimension (**), and a random seed.
+
+I create a SunVox MetaModule that lets you address and mix synths along each dimension.
+
+By default, I give you sound generators that create (mostly) tuned sounds based on gently randomized synths.
+
+If you want, though, I be boring, and can just leave everything blank, for you to fill in yourself.
+Set ``surprise_me`` to ``0`` to be boring.
+
+Regardless, you can replace the contents of these with anything you like!
+
+I CAN BE CPU HEAVY! Remember that all synths are active regardless of being selected at a given time.
+
+(*) where n is [1..5]
+
+(**) where the dimension size is [2..16]
+"""
+
+from random import Random
+
+from rv.api import m
+
+
+# -[ Parameters ]----------------------------------------------------------------------------
+
+
+MAX_RAND = 2 ** 30
+SEED_RANGE = dict(range=(0, MAX_RAND))
+
+
+def set_parameters(p, P):
+    p.surprise_me = P.Integer(0, **SEED_RANGE)
+    p.volume_curve = P.String('linear', choices=['linear', 'parabolic'])
+    p.dimensions = P.Integer(0, range=(1, 6))
+    p.range1 = P.Integer(2, range=(2, 16))
+    p.range2 = P.Integer(2, range=(2, 16))
+    p.range3 = P.Integer(2, range=(2, 16))
+    p.range4 = P.Integer(2, range=(2, 16))
+    p.range5 = P.Integer(2, range=(2, 16))
+    p.range6 = P.Integer(2, range=(2, 16))
+
+
+# -[ Project builder ]----------------------------------------------------------------------------
+
+
+def build_project(p, c, project, random=None):
+    if p.surprise_me > 0 and not random:
+        random = Random(p.surprise_me)
+
+    note_in = project.new_module(m.MultiSynth, name='note in') if p.dimensions > 0 else None
+    output = project.output
+
+    ranges = [
+        getattr(p, f'range{n + 1}')
+        for n
+        in range(p.dimensions)
+    ]
+    project.name = f"WT{p.surprise_me}-{'×'.join(map(str, ranges))}"
+
+    if p.dimensions > 1:
+        def build_synth_dimension(x):
+            mod = project.new_module(m.MetaModule)
+            p2 = ShiftedParameters()
+            p2.surprise_me = p.surprise_me
+            p2.volume_curve = p.volume_curve
+            p2.dimensions = p.dimensions - 1
+            p2.range1 = p.range2
+            p2.range2 = p.range3
+            p2.range3 = p.range4
+            p2.range4 = p.range5
+            p2.range5 = p.range6
+            p2.range6 = 2
+            selectors = build_project(p2, None, mod.project, random)
+            for selector in selectors:
+                ctlindex = mod.user_defined_controllers
+                mod.user_defined_controllers += 1
+                mapping = mod.mappings.values[ctlindex]
+                mapping.module = selector.index
+                mapping.controller = 1
+            return mod
+        mods = [
+            build_synth_dimension(x)
+            for x
+            in range(p.range1)
+        ]
+        filters = []
+        for pos, mod in enumerate(mods):
+            amp = project.new_module(m.Amplifier, volume=256 if pos == 0 else 0)
+            filt = table_filter(project, p.volume_curve, pos, p.range1, amp, 1)
+            filters.append((filt, 'value'))
+            note_in >> mod >> amp >> output
+        selectors = [m.MultiCtl.macro(project, *filters, name='selector')]
+        for x in range(p.dimensions - 1):
+            subselectors = [(mod, f'user_defined_{x + 1}') for mod in mods]
+            selectors += [m.MultiCtl.macro(project, *subselectors, name='subselector')]
+    elif p.dimensions == 1:
+        filters = []
+        for pos in range(p.range1):
+            if random:
+                mod = random_synth(project, random)
+            else:
+                mod = empty_synth(project, random)
+            amp = project.new_module(m.Amplifier, volume=256 if pos == 0 else 0)
+            filt = table_filter(project, p.volume_curve, pos, p.range1, amp, 1)
+            filters.append((filt, 'value'))
+            note_in >> mod >> amp >> project.output
+        selectors = [m.MultiCtl.macro(project, *filters, name='selector')]
+    else:
+        selectors = []
+
+    if c is not None:
+        for x, selector in enumerate(selectors, 1):
+            c.synth[f'dimension_{x}'] = (selector, 'value')
+
+    project.layout(factor=(2, 4))
+    return selectors
+
+
+class ShiftedParameters:
+    pass
+
+
+def random_synth(project, random):
+    mod = project.new_module(m.MetaModule)
+    mod.project.output << mod.project.new_module(
+        m.AnalogGenerator,
+        polyphony_ch=1,
+        waveform='drawn_with_spline_interpolation',
+        samples=[random.randint(0, 255) for x in range(32)],
+    )
+    return mod
+
+
+def empty_synth(project):
+    return project.new_module(m.MetaModule)
+
+
+def table_filter(project, curve, pos, n, dest, ctl):
+    amp = project.new_module(m.Amplifier, dc_offset=-128)
+    mod1 = m.MultiCtl.macro(
+        project,
+        (amp, 'dc_offset'),  # dc offset
+        name=f'Raw {pos + 1}',
+    )
+    if curve == 'linear':
+        def fn(x, pos=pos):
+            return int(max(0, min(32768, 32768 - 128 * abs(n * (x - (257 * pos) / n)))))
+    elif curve == 'parabolic':
+        def fn(x, pos=pos):
+            return int(max(0, min(32768, 32768 - (0.707 * (n * (x - (pos * (257 / n))))) ** 2)))
+    else:
+        def fn(x, pos=pos):
+            return 0
+    mod1.curve.set_via_fn(fn)
+    if pos == 0:  # wrap around from last to first
+        mod1.curve.values = [v + fn(x, pos=n) for x, v in enumerate(mod1.curve.values)]
+    s2c = project.new_module(
+        m.Sound2Ctl,
+        sample_rate_hz=8000,
+        absolute=False,
+        out_max=8192,
+        out_controller=ctl,
+        smooth=128,
+    )
+    amp >> s2c >> dest
+    return mod1
