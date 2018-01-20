@@ -25,6 +25,8 @@ Demo videos:
 from random import Random
 
 from rv.api import m
+from rv.controller import DependentRange, Range
+
 
 # -[ Parameters ]----------------------------------------------------------------------------
 
@@ -46,6 +48,7 @@ def set_parameters(p, P):
     p.range5 = P.Integer(2, range=(2, 16))
     p.range6 = P.Integer(2, range=(2, 16))
     p.polyphony = P.Integer(1, range=(1, 32))
+    p.detune = P.Integer(0, range=(0, 32))
     for builder in synth_builder_fns:
         name = builder.__name__
         p[name] = P.Integer(0, range=(0, 10))
@@ -67,7 +70,7 @@ def build_project(p, c, project, random=None):
             synth_builders.append(empty_synth)
         print(synth_builders)
 
-    random = Random(p.surprise_me)
+    random = random or Random(p.surprise_me)
 
     note_in = project.new_module(m.MultiSynth, name='note in') if p.dimensions > 0 else None
     output = project.output
@@ -120,6 +123,7 @@ def build_project(p, c, project, random=None):
             builder = random.choice(synth_builders)
             print('builder:', builder.__name__)
             mod = builder(project, random, p)
+            mod.finetune = random.randint(-p.detune, p.detune)
             amp = project.new_module(m.Amplifier, volume=256 if pos == 0 else 0)
             filt = table_filter(project, p.volume_curve, pos, p.range1, amp, 1)
             filters.append((filt, 'value'))
@@ -150,14 +154,90 @@ def empty_synth(project, random, p):
 
 
 @synth_builder
+def analog_triangle(project, random, p):
+    return project.new_module(
+        m.AnalogGenerator,
+        polyphony_ch=p.polyphony,
+        waveform='triangle',
+    )
+
+
+@synth_builder
+def analog_saw(project, random, p):
+    return project.new_module(
+        m.AnalogGenerator,
+        polyphony_ch=p.polyphony,
+        waveform='saw',
+    )
+
+
+@synth_builder
+def analog_square(project, random, p):
+    return project.new_module(
+        m.AnalogGenerator,
+        polyphony_ch=p.polyphony,
+        waveform='square',
+        duty_cycle=random.randint(0, 1024),
+    )
+
+
+@synth_builder
+def analog_noise(project, random, p):
+    return project.new_module(
+        m.AnalogGenerator,
+        polyphony_ch=p.polyphony,
+        waveform='noise',
+    )
+
+
+@synth_builder
+def analog_sin(project, random, p):
+    return project.new_module(
+        m.AnalogGenerator,
+        polyphony_ch=p.polyphony,
+        waveform='sin',
+    )
+
+
+@synth_builder
+def analog_hsin(project, random, p):
+    return project.new_module(
+        m.AnalogGenerator,
+        polyphony_ch=p.polyphony,
+        waveform='hsin',
+    )
+
+
+@synth_builder
+def analog_drawn(project, random, p):
+    return project.new_module(
+        m.AnalogGenerator,
+        polyphony_ch=p.polyphony,
+        waveform='drawn',
+        samples=normalized([random.randint(0, 255) for x in range(32)]),
+    )
+
+
+@synth_builder
 def analog_drawn_spline(project, random, p):
-    mod = project.new_module(m.MetaModule)
-    mod.project.output << mod.project.new_module(
+    return project.new_module(
         m.AnalogGenerator,
         polyphony_ch=p.polyphony,
         waveform='drawn_with_spline_interpolation',
         samples=normalized([random.randint(0, 255) for x in range(32)]),
     )
+
+
+@synth_builder
+def fm(project, random, p):
+    mod = project.new_module(
+        m.Fm,
+        polyphony_ch=p.polyphony,
+    )
+    randomize_controllers(mod, random, include=[
+        'c_freq_ratio',
+        'm_freq_ratio',
+    ])
     return mod
 
 
@@ -209,3 +289,33 @@ def normalized(samples):
     ceiling = 255 - distance
     samples = [int(min(255, 255 * x / ceiling)) for x in samples]
     return samples
+
+
+def randomize_controllers(mod, random, skip=None, include=None):
+    if include is not None:
+        choices = set(include)
+    else:
+        choices = set(mod.controllers)
+    if skip is not None:
+        choices -= set(skip)
+    choices = sorted(list(choices))
+    for ctlname, ctl in mod.controllers.items():
+        if not ctl.attached(mod):
+            choices.remove(ctlname)
+    count = random.randint(0, len(choices))
+    for _ in range(count):
+        ctl_name = random.choice(choices)
+        choices.remove(ctl_name)
+        ctl = mod.controllers[ctl_name]
+        t = ctl.value_type
+        if isinstance(t, DependentRange):
+            t = t.parent(mod)
+        if isinstance(t, Range):
+            value = random.randint(t.min, t.max)
+        elif t is bool:
+            value = random.choice([True, False])
+        else:
+            print(t)
+            value = random.choice(list(t))
+        print('setting {}.{} to {}'.format(mod, ctl_name, value))
+        setattr(mod, ctl_name, value)
