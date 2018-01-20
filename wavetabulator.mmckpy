@@ -44,6 +44,7 @@ def set_parameters(p, P):
     p.range4 = P.Integer(2, range=(2, 16))
     p.range5 = P.Integer(2, range=(2, 16))
     p.range6 = P.Integer(2, range=(2, 16))
+    p.polyphony = P.Integer(1, range=(1, 32))
 
 
 # -[ Project builder ]----------------------------------------------------------------------------
@@ -66,9 +67,7 @@ def build_project(p, c, project, random=None):
     if p.dimensions > 1:
         def build_synth_dimension(x):
             mod = project.new_module(m.MetaModule)
-            p2 = ShiftedParameters()
-            p2.surprise_me = p.surprise_me
-            p2.volume_curve = p.volume_curve
+            p2 = type(p)(**p)
             p2.dimensions = p.dimensions - 1
             p2.range1 = p.range2
             p2.range2 = p.range3
@@ -104,7 +103,7 @@ def build_project(p, c, project, random=None):
         filters = []
         for pos in range(p.range1):
             if random:
-                mod = random_synth(project, random)
+                mod = random_synth(project, random, p)
             else:
                 mod = empty_synth(project)
             amp = project.new_module(m.Amplifier, volume=256 if pos == 0 else 0)
@@ -123,15 +122,11 @@ def build_project(p, c, project, random=None):
     return selectors
 
 
-class ShiftedParameters:
-    pass
-
-
-def random_synth(project, random):
+def random_synth(project, random, p):
     mod = project.new_module(m.MetaModule)
     mod.project.output << mod.project.new_module(
         m.AnalogGenerator,
-        polyphony_ch=8,
+        polyphony_ch=p.polyphony,
         waveform='drawn_with_spline_interpolation',
         samples=normalized([random.randint(0, 255) for x in range(32)]),
     )
