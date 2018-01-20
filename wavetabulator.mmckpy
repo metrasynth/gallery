@@ -131,7 +131,7 @@ def random_synth(project, random):
     mod = project.new_module(m.MetaModule)
     mod.project.output << mod.project.new_module(
         m.AnalogGenerator,
-        polyphony_ch=1,
+        polyphony_ch=8,
         waveform='drawn_with_spline_interpolation',
         samples=[random.randint(0, 255) for x in range(32)],
     )
