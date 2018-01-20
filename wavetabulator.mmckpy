@@ -27,7 +27,6 @@ from random import Random
 
 from rv.api import m
 
-
 # -[ Parameters ]----------------------------------------------------------------------------
 
 
@@ -85,6 +84,7 @@ def build_project(p, c, project, random=None):
                 mapping.module = selector.index
                 mapping.controller = 1
             return mod
+
         mods = [
             build_synth_dimension(x)
             for x
@@ -133,7 +133,7 @@ def random_synth(project, random):
         m.AnalogGenerator,
         polyphony_ch=8,
         waveform='drawn_with_spline_interpolation',
-        samples=[random.randint(0, 255) for x in range(32)],
+        samples=normalized([random.randint(0, 255) for x in range(32)]),
     )
     return mod
 
@@ -171,3 +171,19 @@ def table_filter(project, curve, pos, n, dest, ctl):
     )
     amp >> s2c >> dest
     return mod1
+
+
+def normalized(samples):
+    # correct DC offset
+    while (255 - max(*samples)) - min(*samples) not in [-1, 0, 1]:
+        top = max(*samples)
+        bottom = min(*samples)
+        if 255 - top > bottom:
+            samples = [x + 1 for x in samples]
+        else:
+            samples = [x - 1 for x in samples]
+    # normalize
+    distance = min(*samples) + (255 - max(*samples))
+    ceiling = 255 - distance
+    samples = [int(min(255, 255 * x / ceiling)) for x in samples]
+    return samples
