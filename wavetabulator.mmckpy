@@ -61,7 +61,7 @@ def build_project(p, c, project, random=None):
         for n
         in range(p.dimensions)
     ]
-    project.name = f"WT{p.surprise_me}-{'×'.join(map(str, ranges))}"
+    project.name = f"WT{p.surprise_me}-{'x'.join(map(str, ranges))}"
 
     if p.dimensions > 1:
         def build_synth_dimension(x):
