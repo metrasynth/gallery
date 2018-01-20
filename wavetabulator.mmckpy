@@ -106,7 +106,7 @@ def build_project(p, c, project, random=None):
             if random:
                 mod = random_synth(project, random)
             else:
-                mod = empty_synth(project, random)
+                mod = empty_synth(project)
             amp = project.new_module(m.Amplifier, volume=256 if pos == 0 else 0)
             filt = table_filter(project, p.volume_curve, pos, p.range1, amp, 1)
             filters.append((filt, 'value'))
