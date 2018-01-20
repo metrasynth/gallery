@@ -8,7 +8,6 @@ I create a SunVox MetaModule that lets you address and mix synths along each dim
 By default, I give you sound generators that create (mostly) tuned sounds based on gently randomized synths.
 
 If you want, though, I be boring, and can just leave everything blank, for you to fill in yourself.
-Set ``surprise_me`` to ``0`` to be boring.
 
 Regardless, you can replace the contents of these with anything you like!
 
@@ -33,6 +32,8 @@ from rv.api import m
 MAX_RAND = 2 ** 30
 SEED_RANGE = dict(range=(0, MAX_RAND))
 
+synth_builder_fns = []
+
 
 def set_parameters(p, P):
     p.surprise_me = P.Integer(0, **SEED_RANGE)
@@ -45,14 +46,28 @@ def set_parameters(p, P):
     p.range5 = P.Integer(2, range=(2, 16))
     p.range6 = P.Integer(2, range=(2, 16))
     p.polyphony = P.Integer(1, range=(1, 32))
+    for builder in synth_builder_fns:
+        name = builder.__name__
+        p[name] = P.Integer(0, range=(0, 10))
 
 
 # -[ Project builder ]----------------------------------------------------------------------------
 
 
+synth_builders = []
+
+
 def build_project(p, c, project, random=None):
-    if p.surprise_me > 0 and not random:
-        random = Random(p.surprise_me)
+    if c is not None:
+        synth_builders[:] = []
+        for builder in synth_builder_fns:
+            name = builder.__name__
+            synth_builders.extend([builder] * p[name])
+        if not synth_builders:
+            synth_builders.append(empty_synth)
+        print(synth_builders)
+
+    random = Random(p.surprise_me)
 
     note_in = project.new_module(m.MultiSynth, name='note in') if p.dimensions > 0 else None
     output = project.output
@@ -102,10 +117,9 @@ def build_project(p, c, project, random=None):
     elif p.dimensions == 1:
         filters = []
         for pos in range(p.range1):
-            if random:
-                mod = random_synth(project, random, p)
-            else:
-                mod = empty_synth(project)
+            builder = random.choice(synth_builders)
+            print('builder:', builder.__name__)
+            mod = builder(project, random, p)
             amp = project.new_module(m.Amplifier, volume=256 if pos == 0 else 0)
             filt = table_filter(project, p.volume_curve, pos, p.range1, amp, 1)
             filters.append((filt, 'value'))
@@ -122,7 +136,21 @@ def build_project(p, c, project, random=None):
     return selectors
 
 
-def random_synth(project, random, p):
+# -[ Synth builders ]----------------------------------------------------------------------------
+
+
+def synth_builder(fn):
+    synth_builder_fns.append(fn)
+    return fn
+
+
+@synth_builder
+def empty_synth(project, random, p):
+    return project.new_module(m.MetaModule)
+
+
+@synth_builder
+def analog_drawn_spline(project, random, p):
     mod = project.new_module(m.MetaModule)
     mod.project.output << mod.project.new_module(
         m.AnalogGenerator,
@@ -133,8 +161,7 @@ def random_synth(project, random, p):
     return mod
 
 
-def empty_synth(project):
-    return project.new_module(m.MetaModule)
+# -[ Utilities ]----------------------------------------------------------------------------
 
 
 def table_filter(project, curve, pos, n, dest, ctl):
