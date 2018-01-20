@@ -167,7 +167,7 @@ def table_filter(project, curve, pos, n, dest, ctl):
         absolute=False,
         out_max=8192,
         out_controller=ctl,
-        smooth=128,
+        smooth=256,
     )
     amp >> s2c >> dest
     return mod1
