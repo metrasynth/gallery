@@ -243,16 +243,132 @@ def analog_drawn_spline(project, random, p):
 
 
 @synth_builder
+def analog_freaky(project, random, p):
+    mod = project.new_module(
+        m.AnalogGenerator,
+        polyphony_ch=p.polyphony,
+    )
+    randomize_controllers(mod, random, skip={'polyphony_ch'})
+    return mod
+
+
+@synth_builder
 def fm(project, random, p):
     mod = project.new_module(
         m.Fm,
-        polyphony_ch=p.polyphony,
+        polyphony_ch=min(16, p.polyphony),
     )
-    randomize_controllers(mod, random, include=[
+    randomize_controllers(mod, random, include={
         'c_freq_ratio',
         'm_freq_ratio',
-    ])
+    })
     return mod
+
+
+@synth_builder
+def fm_freaky(project, random, p):
+    mod = project.new_module(
+        m.Fm,
+        polyphony_ch=min(16, p.polyphony),
+    )
+    randomize_controllers(mod, random, skip={'polyphony_ch'})
+    return mod
+
+
+@synth_builder
+def generator_freaky(project, random, p):
+    mod = project.new_module(
+        m.Generator,
+        polyphony_ch=min(16, p.polyphony),
+    )
+    randomize_controllers(mod, random, skip={'polyphony_ch'})
+    return mod
+
+
+@synth_builder
+def kicker_freaky(project, random, p):
+    mod = project.new_module(
+        m.Kicker,
+        polyphony_ch=min(4, p.polyphony),
+    )
+    randomize_controllers(mod, random, skip={'polyphony_ch'})
+    return mod
+
+
+@synth_builder
+def drumsynth_freaky(project, random, p):
+    mod = project.new_module(
+        m.DrumSynth,
+        polyphony_ch=min(8, p.polyphony),
+    )
+    randomize_controllers(mod, random, skip={'polyphony_ch'})
+    return mod
+
+
+@synth_builder
+def spectravoice_freaky(project, random, p):
+    mod = project.new_module(
+        m.SpectraVoice,
+        polyphony_ch=p.polyphony,
+    )
+    randomize_controllers(mod, random, skip={'polyphony_ch'})
+    count = random.randint(1, len(mod.harmonics))
+    htypes = list(m.SpectraVoice.HarmonicType)
+    for harmonic in mod.harmonics[:count]:
+        harmonic.freq_hz = random.randint(0, 22050)
+        harmonic.volume = random.randint(0, 255)
+        harmonic.width = random.randint(0, 3)
+        harmonic.type = random.choice(htypes)
+    return mod
+
+
+@synth_builder
+def lfo_freaky(project, random, p):
+    mod = project.new_module(
+        m.Lfo,
+        generator=True,
+        frequency_unit=m.Lfo.FrequencyUnit.hz,
+    )
+    randomize_controllers(mod, random, include={'freq'}, skip={'generator', 'frequency_unit'})
+    return mod
+
+
+@synth_builder
+def lfo_superfreaky(project, random, p):
+    mm = project.new_module(m.MetaModule)
+    lfo1 = mm.project.new_module(
+        m.Lfo,
+        generator=True,
+        frequency_unit=m.Lfo.FrequencyUnit.hz,
+    )
+    randomize_controllers(lfo1, random, include={'freq'}, skip={'generator', 'frequency_unit'})
+    lfo2 = mm.project.new_module(
+        m.Lfo,
+        frequency_unit=m.Lfo.FrequencyUnit.hz,
+    )
+    randomize_controllers(lfo2, random, include={'freq'}, skip={'generator', 'frequency_unit'})
+    lfo1 >> lfo2 >> mm.project.output
+    return mm
+
+
+@synth_builder
+def lfo_hyperfreaky(project, random, p):
+    mm = project.new_module(m.MetaModule)
+    lfo1 = mm.project.new_module(
+        m.Lfo,
+        generator=True,
+        frequency_unit=m.Lfo.FrequencyUnit.hz,
+    )
+    randomize_controllers(lfo1, random, include={'freq'}, skip={'generator', 'frequency_unit'})
+    lfo2 = mm.project.new_module(
+        m.Lfo,
+        frequency_unit=m.Lfo.FrequencyUnit.hz,
+    )
+    randomize_controllers(lfo2, random, include={'freq'}, skip={'generator', 'frequency_unit'})
+    modulator = mm.project.new_module(m.Modulator)
+    randomize_controllers(modulator, random)
+    mm.project.output << modulator << [lfo1, lfo2]
+    return mm
 
 
 # -[ Utilities ]----------------------------------------------------------------------------
@@ -311,20 +427,21 @@ def normalized(samples):
 
 
 def randomize_controllers(mod, random, skip=None, include=None):
-    if include is not None:
+    if include is not None and skip is not None:
+        choices = set(mod.controllers) - set(skip)
+        choices.update(include)
+    elif include is not None:
         choices = set(include)
+    elif skip is not None:
+        choices = set(mod.controllers) - set(skip)
     else:
         choices = set(mod.controllers)
-    if skip is not None:
-        choices -= set(skip)
     choices = sorted(list(choices))
     for ctlname, ctl in mod.controllers.items():
         if not ctl.attached(mod):
             choices.remove(ctlname)
     count = random.randint(0, len(choices))
-    for _ in range(count):
-        ctl_name = random.choice(choices)
-        choices.remove(ctl_name)
+    def munge(ctl_name):
         ctl = mod.controllers[ctl_name]
         t = ctl.value_type
         if isinstance(t, DependentRange):
@@ -337,3 +454,14 @@ def randomize_controllers(mod, random, skip=None, include=None):
             value = random.choice(list(t))
         print(f'setting {mod}.{ctl_name} to {value}')
         setattr(mod, ctl_name, value)
+    if include is not None:
+        for ctl_name in include:
+            choices.remove(ctl_name)
+            munge(ctl_name)
+    for _ in range(count):
+        if choices:
+            ctl_name = random.choice(choices)
+            choices.remove(ctl_name)
+            munge(ctl_name)
+        else:
+            break
