@@ -323,55 +323,104 @@ def spectravoice_freaky(project, random, p):
 
 
 @synth_builder
-def lfo_freaky(project, random, p):
-    mod = project.new_module(
-        m.Lfo,
-        generator=True,
-        frequency_unit=m.Lfo.FrequencyUnit.hz,
-    )
-    randomize_controllers(mod, random, include={'freq'}, skip={'generator', 'frequency_unit'})
-    return mod
-
-
-@synth_builder
-def lfo_superfreaky(project, random, p):
+def lfo_freaky(project, random, p, parasitic=False):
     mm = project.new_module(m.MetaModule)
-    lfo1 = mm.project.new_module(
+    mp = mm.project
+    lfo = mp.new_module(
         m.Lfo,
         generator=True,
         frequency_unit=m.Lfo.FrequencyUnit.hz,
     )
-    randomize_controllers(lfo1, random, include={'freq'}, skip={'generator', 'frequency_unit'})
-    lfo2 = mm.project.new_module(
-        m.Lfo,
-        frequency_unit=m.Lfo.FrequencyUnit.hz,
-    )
-    randomize_controllers(lfo2, random, include={'freq'}, skip={'generator', 'frequency_unit'})
-    lfo1 >> lfo2 >> mm.project.output
+    randomize_controllers(lfo, random, include={'freq'}, skip={'generator', 'frequency_unit'})
+    lfo >> lfo_amp(mp) >> mp.output
+    if parasitic:
+        attach_parasite(mp, random, lfo, random.randint(3, 4))
     return mm
 
 
 @synth_builder
-def lfo_hyperfreaky(project, random, p):
+def lfo_superfreaky(project, random, p, parasitic=False):
     mm = project.new_module(m.MetaModule)
-    lfo1 = mm.project.new_module(
+    mp = mm.project
+    lfo1 = mp.new_module(
         m.Lfo,
         generator=True,
         frequency_unit=m.Lfo.FrequencyUnit.hz,
     )
     randomize_controllers(lfo1, random, include={'freq'}, skip={'generator', 'frequency_unit'})
-    lfo2 = mm.project.new_module(
+    lfo2 = mp.new_module(
         m.Lfo,
         frequency_unit=m.Lfo.FrequencyUnit.hz,
     )
     randomize_controllers(lfo2, random, include={'freq'}, skip={'generator', 'frequency_unit'})
-    modulator = mm.project.new_module(m.Modulator)
+    lfo1 >> lfo_amp(mp) >> lfo2 >> mp.output
+    if parasitic:
+        attach_parasite(mp, random, lfo1, random.randint(3, 4))
+        attach_parasite(mp, random, lfo2, random.randint(3, 4))
+    return mm
+
+
+@synth_builder
+def lfo_hyperfreaky(project, random, p, parasitic=False):
+    mm = project.new_module(m.MetaModule)
+    mp = mm.project
+    lfo1 = mp.new_module(
+        m.Lfo,
+        generator=True,
+        frequency_unit=m.Lfo.FrequencyUnit.hz,
+    )
+    randomize_controllers(lfo1, random, include={'freq'}, skip={'generator', 'frequency_unit'})
+    lfo2 = mp.new_module(
+        m.Lfo,
+        frequency_unit=m.Lfo.FrequencyUnit.hz,
+    )
+    randomize_controllers(lfo2, random, include={'freq'}, skip={'generator', 'frequency_unit'})
+    modulator = mp.new_module(m.Modulator)
     randomize_controllers(modulator, random)
-    mm.project.output << modulator << [lfo1, lfo2]
+    mp.output << modulator << [lfo1 >> lfo_amp(mp), lfo2 >> lfo_amp(mp)]
+    if parasitic:
+        attach_parasite(mp, random, lfo1, random.randint(3, 4))
+        attach_parasite(mp, random, lfo2, random.randint(3, 4))
     return mm
+
+
+@synth_builder
+def lfo_parasitic_freaky(project, random, p):
+    return lfo_freaky(project, random, p, parasitic=True)
+
+
+@synth_builder
+def lfo_parasitic_superfreaky(project, random, p):
+    return lfo_superfreaky(project, random, p, parasitic=True)
+
+
+@synth_builder
+def lfo_parasitic_hyperfreaky(project, random, p):
+    return lfo_hyperfreaky(project, random, p, parasitic=True)
 
 
 # -[ Utilities ]----------------------------------------------------------------------------
+
+
+def lfo_amp(project):
+    return project.new_module(m.Amplifier, volume=512, dc_offset=-128)
+
+
+def attach_parasite(project, random, host, ctlnum):
+    parasite = project.new_module(
+        m.Lfo,
+        generator=True,
+    )
+    randomize_controllers(parasite, random, include={'frequency_unit'})
+    randomize_controllers(parasite, random, include={'freq'}, skip={'generator'})
+    ventricle = project.new_module(
+        m.Sound2Ctl,
+        sample_rate_hz=120,
+        smooth=32,
+        out_controller=ctlnum,
+    )
+    randomize_controllers(ventricle, random, include={'out_min', 'out_max', 'gain'})
+    parasite >> ventricle >> host
 
 
 def table_filter(project, curve, pos, n, dest, ctl):
@@ -452,7 +501,6 @@ def randomize_controllers(mod, random, skip=None, include=None):
             value = random.choice([True, False])
         else:
             value = random.choice(list(t))
-        print(f'setting {mod}.{ctl_name} to {value}')
         setattr(mod, ctl_name, value)
     if include is not None:
         for ctl_name in include:
