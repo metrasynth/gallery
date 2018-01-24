@@ -40,10 +40,10 @@ def build_project(p, c, project):
     
     project.layout()
     
-    c.random_phase = (multi, 'random_phase')
-    c.attack = (attack, 'value')
-    c.release = (release, 'value')
-    c.sustain = (sustain, 'value')
+    c.general.random_phase = (multi, 'random_phase')
+    c.envelope.attack = (attack, 'value')
+    c.envelope.release = (release, 'value')
+    c.envelope.sustain = (sustain, 'value')
     
     for i, module in enumerate(generators, 1):
         c.waveforms['generator_{}'.format(i)] = (module, 'waveform')
