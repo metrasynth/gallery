@@ -703,7 +703,7 @@ def randomize_controllers(mod, random, skip=None, include=None):
     for ctlname, ctl in mod.controllers.items():
         if not ctl.attached(mod):
             choices.remove(ctlname)
-    count = random.randint(0, len(choices))
+    count = random.randint(len(choices) and 1, len(choices))
 
     def munge(ctl_name):
         ctl = mod.controllers[ctl_name]
