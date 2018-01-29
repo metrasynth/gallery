@@ -36,9 +36,10 @@ Module key::
 
 from random import Random
 
+import py
+
 from rv.api import m
 from rv.controller import DependentRange, Range
-
 
 # -[ Parameters ]----------------------------------------------------------------------------
 
@@ -51,6 +52,7 @@ synth_builder_fns = []
 
 def set_parameters(p, P):
     p.surprise_me = P.Integer(0, **SEED_RANGE)
+    p.global_parasites = P.Integer(0, range=(0, 100))
     p.volume_curve = P.String('linear', choices=['linear', 'parabolic'])
     p.dimensions = P.Integer(0, range=(1, 6))
     p.range1 = P.Integer(2, range=(2, 16))
@@ -64,6 +66,7 @@ def set_parameters(p, P):
     for builder in synth_builder_fns:
         name = builder.__name__
         p[name] = P.Integer(0, range=(0, 10))
+    p.ogg_paths = P.PathList()
 
 
 # -[ Project builder ]----------------------------------------------------------------------------
@@ -113,6 +116,7 @@ def build_project(p, c, project, random=None, prefix=''):
                 mapping.module = selector.index
                 mapping.controller = 1
             return mod
+
         mods = [
             build_synth_dimension(x)
             for x
@@ -169,77 +173,150 @@ def empty_synth(project, random, p):
 
 @synth_builder
 def analog_triangle(project, random, p):
-    return project.new_module(
+    mod = project.new_module(
         m.AnalogGenerator,
         polyphony_ch=p.polyphony,
         waveform='triangle',
     )
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'panning',
+        'attack',
+        'release',
+        'freq2',
+        'noise',
+    })
+    return mod
 
 
 @synth_builder
 def analog_saw(project, random, p):
-    return project.new_module(
+    mod = project.new_module(
         m.AnalogGenerator,
         polyphony_ch=p.polyphony,
         waveform='saw',
     )
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'panning',
+        'attack',
+        'release',
+        'freq2',
+        'noise',
+    })
+    return mod
 
 
 @synth_builder
 def analog_square(project, random, p):
-    return project.new_module(
+    mod = project.new_module(
         m.AnalogGenerator,
         polyphony_ch=p.polyphony,
         waveform='square',
         duty_cycle=random.randint(0, 1024),
     )
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'panning',
+        'attack',
+        'release',
+        'duty_cycle',
+        'freq2',
+        'noise',
+    })
+    return mod
 
 
 @synth_builder
 def analog_noise(project, random, p):
-    return project.new_module(
+    mod = project.new_module(
         m.AnalogGenerator,
         polyphony_ch=p.polyphony,
         waveform='noise',
     )
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'panning',
+        'attack',
+        'release',
+        'freq2',
+        'noise',
+    })
+    return mod
 
 
 @synth_builder
 def analog_sin(project, random, p):
-    return project.new_module(
+    mod = project.new_module(
         m.AnalogGenerator,
         polyphony_ch=p.polyphony,
         waveform='sin',
     )
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'panning',
+        'attack',
+        'release',
+        'freq2',
+        'noise',
+    })
+    return mod
 
 
 @synth_builder
 def analog_hsin(project, random, p):
-    return project.new_module(
+    mod = project.new_module(
         m.AnalogGenerator,
         polyphony_ch=p.polyphony,
         waveform='hsin',
     )
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'panning',
+        'attack',
+        'release',
+        'freq2',
+        'noise',
+    })
+    return mod
 
 
 @synth_builder
 def analog_drawn(project, random, p):
-    return project.new_module(
+    mod = project.new_module(
         m.AnalogGenerator,
         polyphony_ch=p.polyphony,
         waveform='drawn',
         samples=normalized([random.randint(0, 255) for x in range(32)]),
     )
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'panning',
+        'attack',
+        'release',
+        'freq2',
+        'noise',
+    })
+    return mod
 
 
 @synth_builder
 def analog_drawn_spline(project, random, p):
-    return project.new_module(
+    mod = project.new_module(
         m.AnalogGenerator,
         polyphony_ch=p.polyphony,
         waveform='drawn_with_spline_interpolation',
         samples=normalized([random.randint(0, 255) for x in range(32)]),
     )
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'panning',
+        'attack',
+        'release',
+        'freq2',
+        'noise',
+    })
+    return mod
 
 
 @synth_builder
@@ -249,6 +326,16 @@ def analog_freaky(project, random, p):
         polyphony_ch=p.polyphony,
     )
     randomize_controllers(mod, random, skip={'polyphony_ch'})
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'waveform',
+        'panning',
+        'attack',
+        'release',
+        'duty_cycle',
+        'freq2',
+        'noise',
+    })
     return mod
 
 
@@ -262,6 +349,23 @@ def fm(project, random, p):
         'c_freq_ratio',
         'm_freq_ratio',
     })
+    possibly_attach_parasite(project, random, p, mod, {
+        'c_volume',
+        'm_volume',
+        'panning',
+        'c_freq_ratio',
+        'm_freq_ratio',
+        'm_feedback',
+        'c_attack',
+        'c_decay',
+        'c_sustain',
+        'c_release',
+        'm_attack',
+        'm_decay',
+        'm_sustain',
+        'm_release',
+        'm_scaling_per_key',
+    })
     return mod
 
 
@@ -272,6 +376,23 @@ def fm_freaky(project, random, p):
         polyphony_ch=min(16, p.polyphony),
     )
     randomize_controllers(mod, random, skip={'polyphony_ch'})
+    possibly_attach_parasite(project, random, p, mod, {
+        'c_volume',
+        'm_volume',
+        'panning',
+        'c_freq_ratio',
+        'm_freq_ratio',
+        'm_feedback',
+        'c_attack',
+        'c_decay',
+        'c_sustain',
+        'c_release',
+        'm_attack',
+        'm_decay',
+        'm_sustain',
+        'm_release',
+        'm_scaling_per_key',
+    })
     return mod
 
 
@@ -282,6 +403,16 @@ def generator_freaky(project, random, p):
         polyphony_ch=min(16, p.polyphony),
     )
     randomize_controllers(mod, random, skip={'polyphony_ch'})
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'waveform',
+        'panning',
+        'attack',
+        'release',
+        'sustain',
+        'freq_modulation_input',
+        'duty_cycle',
+    })
     return mod
 
 
@@ -292,6 +423,16 @@ def kicker_freaky(project, random, p):
         polyphony_ch=min(4, p.polyphony),
     )
     randomize_controllers(mod, random, skip={'polyphony_ch'})
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'waveform',
+        'panning',
+        'attack',
+        'release',
+        'vol_addition',
+        'env_acceleration',
+        'anticlick',
+    })
     return mod
 
 
@@ -302,6 +443,19 @@ def drumsynth_freaky(project, random, p):
         polyphony_ch=min(8, p.polyphony),
     )
     randomize_controllers(mod, random, skip={'polyphony_ch'})
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'panning',
+        'bass_volume',
+        'bass_power',
+        'bass_tone',
+        'bass_length',
+        'hihat_volume',
+        'hihat_length',
+        'snare_volume',
+        'snare_tone',
+        'snare_length',
+    })
     return mod
 
 
@@ -319,6 +473,12 @@ def spectravoice_freaky(project, random, p):
         harmonic.volume = random.randint(0, 255)
         harmonic.width = random.randint(0, 3)
         harmonic.type = random.choice(htypes)
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'panning',
+        'attack',
+        'release',
+    })
     return mod
 
 
@@ -399,11 +559,65 @@ def lfo_parasitic_hyperfreaky(project, random, p):
     return lfo_hyperfreaky(project, random, p, parasitic=True)
 
 
+@synth_builder
+def ogg(project, random, p):
+    mm = project.new_module(m.MetaModule)
+    mp = mm.project
+    picker = pathpicker(p.ogg_paths, random)
+    path = picker()
+    with open(path, 'rb') as f:
+        player = mp.new_module(
+            m.VorbisPlayer,
+            repeat=True,
+            data=f.read(),
+        )
+    possibly_attach_parasite(mp, random, p, player, {
+        'volume',
+        'original_speed',
+        'finetune',
+        'transpose',
+        'interpolation',
+    })
+    player >> mp.output
+    return mm
+
+
 # -[ Utilities ]----------------------------------------------------------------------------
+
+
+FILE_URL_PREFIX = 'file://'
+
+
+def pathpicker(paths, random):
+    all_paths = set()
+    for path in paths:
+        if path.startswith(FILE_URL_PREFIX):
+            path = path[len(FILE_URL_PREFIX):]
+        try:
+            all_paths.update(set(py.path.local(path).visit('*.ogg')))
+        except py.error.ENOENT:
+            print('WARNING: path not found: {}'.format(path))
+            pass
+    all_paths = sorted(list(all_paths))
+
+    def fn():
+        choice = random.choice(all_paths) if all_paths else None
+        return choice
+
+    return fn
 
 
 def lfo_amp(project):
     return project.new_module(m.Amplifier, volume=512, dc_offset=-128)
+
+
+def possibly_attach_parasite(project, random, p, host, choices):
+    if random.randint(0, 100) < p.global_parasites:
+        print('  ^ parasite!')
+        choices = sorted(list(choices))
+        choice = random.choice(choices)
+        ctlnum = host.controllers[choice].number
+        attach_parasite(project, random, host, ctlnum)
 
 
 def attach_parasite(project, random, host, ctlnum):
@@ -490,6 +704,7 @@ def randomize_controllers(mod, random, skip=None, include=None):
         if not ctl.attached(mod):
             choices.remove(ctlname)
     count = random.randint(0, len(choices))
+
     def munge(ctl_name):
         ctl = mod.controllers[ctl_name]
         t = ctl.value_type
@@ -502,6 +717,7 @@ def randomize_controllers(mod, random, skip=None, include=None):
         else:
             value = random.choice(list(t))
         setattr(mod, ctl_name, value)
+
     if include is not None:
         for ctl_name in include:
             choices.remove(ctl_name)
