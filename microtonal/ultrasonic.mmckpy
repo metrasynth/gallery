@@ -1,0 +1,65 @@
+"""
+
+Ultrasonic:
+
+The fastest SunVox scaler on the planet.
+
+"""
+
+from rv.api import m, Pattern, NOTECMD
+
+
+# -----------------------------------------------------------------------------
+
+
+def set_parameters(p, P):
+    p.name = P.String('My Scale')
+    p.starting_note = P.Integer(1, range=(1, 120))
+    p.pitches = P.KeyValuePairs()
+
+
+# -----------------------------------------------------------------------------
+
+
+def build_project(p, c, project):
+    project.name = p.name or 'Untitled'
+
+    note_in = project.new_module(m.MultiSynth)
+    output = project.output
+
+    starting_note_index0 = p.starting_note - 1
+    if p.pitches:
+        max_pitch_index1 = max(map(int, p.pitches.keys()))
+        for pitch_index1 in range(1, max_pitch_index1 + 1):
+            pitch_hex = p.pitches.get(str(pitch_index1), None)
+            if pitch_hex is not None:
+                pitch = int(pitch_hex.lower(), 16)
+                note_filter = project.new_module(
+                    m.MultiSynth,
+                    ignore_notes_with_zero_velocity=True,
+                    nv_values=[
+                        0xff if (note_index0 % max_pitch_index1 == pitch_index1 - 1) else 0x00
+                        for note_index0 in range(starting_note_index0, starting_note_index0 + 128)
+                    ],
+                )
+                pitch_setter = project.new_module(
+                    m.MetaModule,
+                    name=pitch_hex,
+                    input_module=256,
+                    play_patterns='on_no_repeat',
+                    bpm=1,
+                    tpl=31,
+                )
+                psp = pitch_setter.project
+                psp.new_module(m.MultiSynth) >> psp.output
+                pattern = Pattern(tracks=1, lines=1024)
+                note = pattern.data[0][0]
+                note.note = NOTECMD.SET_PITCH
+                note.module = 2
+                note.val = pitch
+                psp += pattern
+                note_in >> note_filter >> pitch_setter >> output
+    else:
+        note_in >> output
+
+    project.layout()
