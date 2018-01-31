@@ -52,7 +52,7 @@ def build_project(p, c, project):
                 )
                 psp = pitch_setter.project
                 psp.new_module(m.MultiSynth) >> psp.output
-                pattern = Pattern(tracks=1, lines=1024)
+                pattern = Pattern(tracks=1, lines=32)
                 note = pattern.data[0][0]
                 note.note = NOTECMD.SET_PITCH
                 note.module = 2
