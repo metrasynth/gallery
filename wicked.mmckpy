@@ -5,6 +5,10 @@
 Hear the drummer get...   \ V  V /| | (__|   <  __/ (_| |
                            \_/\_/ |_|\___|_|\_\___|\__,_|
 
+
+NOTE: You can't use this with Solar Sails unless you run it
+with SciPy. We are working on better WAV support that doesn't
+require SciPy.
 """
 
 from collections import OrderedDict

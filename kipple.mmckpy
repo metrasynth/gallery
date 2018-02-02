@@ -76,8 +76,6 @@ def set_parameters(p, P):
     p.p_fm = probability()
     p.p_generator = probability()
     p.p_kicker = probability()
-    p.p_sampler = probability()
-    p.sampler_paths = P.PathList()
     p.p_spectravoice = probability()
 
     p.p_amplifier = probability()
@@ -336,15 +334,6 @@ def build_project(p, c, project):
     def kicker(track):
         generic_random_mod(track, m.Kicker)
 
-    @mutation('synth', p.p_sampler)
-    def sampler(track):
-        mod = generic_random_mod(track, m.Sampler)
-        finder = samplefinder(p.sampler_paths, track.random)
-        path = finder()
-        if path:
-            print('Loading path', path)
-            load_wav_to_sampler_slot(path, mod, 0)
-
     @mutation('synth', p.p_spectravoice)
     def spectravoice(track):
         mod = generic_random_mod(track, m.SpectraVoice)
@@ -486,56 +475,3 @@ def build_project(p, c, project):
 
     go()
     print('Going... going... gone!')
-
-
-
-# -[ WAV loading ]----------------------------------------------------------------------
-
-
-import py
-from scipy.io import wavfile
-
-FILE_URL_PREFIX = 'file://'
-
-
-def load_wav_to_sampler_slot(path, sampler, slot, **kwargs):
-    sample = sampler.Sample()
-    freq, snd = wavfile.read(str(path))
-    if snd.dtype.name == 'int16':
-        sample.format = sampler.Format.int16
-    elif snd.dtype.name == 'float32':
-        sample.format = sampler.Format.float32
-    else:
-        raise Exception('Not supported')
-    if len(snd.shape) == 1:
-        size, = snd.shape
-        channels = 1
-    else:
-        size, channels = snd.shape
-    sample.rate = freq
-    sample.channels = {
-        1: m.Sampler.Channels.mono,
-        2: m.Sampler.Channels.stereo,
-    }[channels]
-    sample.data = snd.data.tobytes()
-    for key, value in kwargs.items():
-        setattr(sample, key, value)
-    sampler.samples[slot] = sample
-    return sample
-
-
-def samplefinder(paths, random):
-    all_paths = set()
-    for path in paths:
-        if path.startswith(FILE_URL_PREFIX):
-            path = path[len(FILE_URL_PREFIX):]
-        try:
-            all_paths.update(set(py.path.local(path).visit('*.wav')))
-        except py.error.ENOENT:
-            print('WARNING: path not found: {}'.format(path))
-            pass
-    all_paths = sorted(list(all_paths))
-    def fn():
-        choice = random.choice(all_paths) if all_paths else None
-        return choice
-    return fn
