@@ -374,7 +374,7 @@ def build_project(p, c, project):
                 )
 
     # Make it pretty!
-    project.layout(factor=(2, 4))
+    project.layout()
 
 
 # -[ Performers ]----------------------------------------------------------------------------

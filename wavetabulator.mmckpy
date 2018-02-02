@@ -154,7 +154,7 @@ def build_project(p, c, project, random=None, prefix=''):
             c.synth[f'dimension_{x}'] = (selector, 'value')
             selector.value = 0
 
-    project.layout(factor=(2, 4))
+    project.layout()
     return selectors
 
 
