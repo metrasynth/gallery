@@ -53,7 +53,7 @@ synth_builder_fns = []
 def set_parameters(p, P):
     p.surprise_me = P.Integer(0, **SEED_RANGE)
     p.global_parasites = P.Integer(0, range=(0, 100))
-    p.volume_curve = P.String('linear', choices=['linear', 'parabolic'])
+    p.fader_curve = P.String('linear', choices=['linear', 'parabolic'])
     p.dimensions = P.Integer(0, range=(1, 6))
     p.range1 = P.Integer(2, range=(2, 16))
     p.range2 = P.Integer(2, range=(2, 16))
@@ -124,8 +124,8 @@ def build_project(p, c, project, random=None, prefix=''):
         ]
         filters = []
         for pos, mod in enumerate(mods):
-            amp = project.new_module(m.Amplifier, volume=0, name=f'A {pos + 1}')
-            filt = table_filter(project, p.volume_curve, pos, p.range1, amp, 1)
+            amp = project.new_module(m.Amplifier, fine_volume=0, name=f'A {pos + 1}')
+            filt = table_filter(project, p.fader_curve, pos, p.range1, amp, 7)
             filters.append((filt, 'value'))
             note_in >> mod >> amp >> output
         selectors = [m.MultiCtl.macro(project, *filters, name='D sel 1')]
@@ -141,10 +141,10 @@ def build_project(p, c, project, random=None, prefix=''):
             mod = builder(project, random, p)
             mod.name = name
             mod.finetune = random.randint(-p.detune, p.detune)
-            amp = project.new_module(m.Amplifier, volume=0, name=f'A {pos + 1}')
-            filt = table_filter(project, p.volume_curve, pos, p.range1, amp, 1)
+            amp = project.new_module(m.Amplifier, fine_volume=0, name=f'A {pos + 1}')
+            filt = table_filter(project, p.fader_curve, pos, p.range1, amp, 7)
             filters.append((filt, 'value'))
-            note_in >> mod >> amp >> project.output
+            note_in >> mod >> amp >> output
         selectors = [m.MultiCtl.macro(project, *filters, name='S sel')]
     else:
         selectors = []
@@ -637,15 +637,15 @@ def attach_parasite(project, random, host, ctlnum):
     parasite >> ventricle >> host
 
 
-def table_filter(project, curve, pos, n, dest, ctl):
-    amp = project.new_module(
+def table_filter(project, curve, pos, n, amp, ctl):
+    dc = project.new_module(
         m.Amplifier,
         name=f'V {pos + 1}',
         dc_offset=-128,
     )
     mod1 = m.MultiCtl.macro(
         project,
-        (amp, 'dc_offset'),  # dc offset
+        (dc, 'dc_offset'),
         name=f'F {pos + 1}',
     )
     if curve == 'linear':
@@ -665,11 +665,10 @@ def table_filter(project, curve, pos, n, dest, ctl):
         name=f'smooth {pos + 1}',
         sample_rate_hz=8000,
         absolute=False,
-        out_max=8192,
         out_controller=ctl,
         smooth=256,
     )
-    amp >> s2c >> dest
+    dc >> s2c >> amp
     return mod1
 
 
