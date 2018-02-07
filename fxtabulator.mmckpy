@@ -1,0 +1,504 @@
+"""
+I am FxTabulator, an n-dimensional (*) wavetable-inspired effect rack constructor.
+
+You select the number of dimensions, the size of the dimension (**), and a random seed.
+
+I create a SunVox MetaModule that lets you address and mix effects along each dimension.
+
+I can give you effects that create subtle or dramatic changes to sound.
+
+If you want, though, I be boring, and can just leave everything blank, for you to fill in yourself.
+
+Regardless, you can replace the contents of these with anything you like!
+
+I CAN BE CPU HEAVY! Remember that all effects are active regardless of being selected at a given time.
+
+Module key::
+
+    audio in    Incoming audio is sent here
+    D #.#...    Dimension #.#
+    E #.#.#     Effect #.#.#
+    V #         Value for position #
+    F #         Value filter for position #
+    smooth #    Value smoother for position #
+    Pre #       Pre-amplifier for position #
+    Post #      Post-amplifier for position #
+    D sel #     Position selector for dimension #
+    E sel       Effect selector
+
+(*) where n is [1..5]
+
+(**) where the dimension size is [2..16]
+"""
+
+from random import Random
+
+from rv.api import m
+from rv.controller import DependentRange, Range
+
+# -[ Parameters ]----------------------------------------------------------------------------
+
+
+MAX_RAND = 2 ** 30
+SEED_RANGE = dict(range=(0, MAX_RAND))
+
+effect_builder_fns = []
+
+
+def set_parameters(p, P):
+    p.surprise_me = P.Integer(0, **SEED_RANGE)
+    p.global_parasites = P.Integer(0, range=(0, 100))
+    p.fader_curve = P.String('linear', choices=['linear', 'parabolic'])
+    p.amps = P.String('pre+post', choices=['pre+post', 'pre', 'post'])
+    p.dimensions = P.Integer(0, range=(1, 6))
+    p.range1 = P.Integer(2, range=(2, 16))
+    p.range2 = P.Integer(2, range=(2, 16))
+    p.range3 = P.Integer(2, range=(2, 16))
+    p.range4 = P.Integer(2, range=(2, 16))
+    p.range5 = P.Integer(2, range=(2, 16))
+    p.range6 = P.Integer(2, range=(2, 16))
+    for builder in effect_builder_fns:
+        name = builder.__name__
+        p[name] = P.Integer(0, range=(0, 10))
+
+
+# -[ Project builder ]----------------------------------------------------------------------------
+
+
+effect_builders = []
+
+
+def build_project(p, c, project, random=None, prefix=''):
+    if c is not None:
+        effect_builders[:] = []
+        for builder in effect_builder_fns:
+            name = builder.__name__
+            effect_builders.extend([builder] * p[name])
+        if not effect_builders:
+            effect_builders.append(empty_effect)
+
+    random = random or Random(p.surprise_me)
+
+    audio_in = project.new_module(m.Amplifier, name='audio in') if p.dimensions > 0 else None
+    output = project.output
+
+    ranges = [
+        getattr(p, f'range{n + 1}')
+        for n
+        in range(p.dimensions)
+    ]
+    project.name = f"FT{p.surprise_me}-{'x'.join(map(str, ranges))}"
+
+    if p.dimensions > 1:
+        def build_effect_dimension(x):
+            mod = project.new_module(m.MetaModule)
+            mod.name = f'D {prefix}{x + 1}...'
+            p2 = type(p)(**p)
+            p2.dimensions = p.dimensions - 1
+            p2.range1 = p.range2
+            p2.range2 = p.range3
+            p2.range3 = p.range4
+            p2.range4 = p.range5
+            p2.range5 = p.range6
+            p2.range6 = 2
+            selectors = build_project(p2, None, mod.project, random, prefix=f'{prefix}{x + 1}.')
+            for selector in selectors:
+                ctlindex = mod.user_defined_controllers
+                mod.user_defined_controllers += 1
+                mapping = mod.mappings.values[ctlindex]
+                mapping.module = selector.index
+                mapping.controller = 1
+            return mod
+        mods = [
+            build_effect_dimension(x)
+            for x
+            in range(p.range1)
+        ]
+        filters = []
+        for pos, mod in enumerate(mods):
+            preamp = project.new_module(m.Amplifier, fine_volume=0, name=f'Pre {pos + 1}') if 'pre' in p.amps else None
+            postamp = project.new_module(m.Amplifier, fine_volume=0, name=f'Post {pos + 1}') if 'post' in p.amps else None
+            amps = [amp for amp in (preamp, postamp) if amp is not None]
+            filt = table_filter(project, p.fader_curve, pos, p.range1, amps, 7)
+            filters.append((filt, 'value'))
+            if preamp and not postamp:
+                audio_in >> preamp >> mod >> output
+            elif not preamp and postamp:
+                audio_in >> mod >> postamp >> output
+            else:
+                audio_in >> preamp >> mod >> postamp >> output
+        selectors = [m.MultiCtl.macro(project, *filters, name='D sel 1')]
+        for x in range(p.dimensions - 1):
+            subselectors = [(mod, f'user_defined_{x + 1}') for mod in mods]
+            selectors += [m.MultiCtl.macro(project, *subselectors, name=f'D sel {x + 2}')]
+    elif p.dimensions == 1:
+        filters = []
+        for pos in range(p.range1):
+            builder = random.choice(effect_builders)
+            name = f'E {prefix}{pos + 1}'
+            print(f'{name} builder: {builder.__name__}')
+            mod = builder(project, random, p)
+            mod.name = name
+            preamp = project.new_module(m.Amplifier, fine_volume=0, name=f'Pre {pos + 1}') if 'pre' in p.amps else None
+            postamp = project.new_module(m.Amplifier, fine_volume=0, name=f'Post {pos + 1}') if 'post' in p.amps else None
+            amps = [amp for amp in (preamp, postamp) if amp is not None]
+            filt = table_filter(project, p.fader_curve, pos, p.range1, amps, 7)
+            filters.append((filt, 'value'))
+            if preamp and not postamp:
+                audio_in >> preamp >> mod >> output
+            elif not preamp and postamp:
+                audio_in >> mod >> postamp >> output
+            else:
+                audio_in >> preamp >> mod >> postamp >> output
+        selectors = [m.MultiCtl.macro(project, *filters, name='E sel')]
+    else:
+        selectors = []
+
+    if c is not None:
+        for x, selector in enumerate(selectors, 1):
+            c.synth[f'dimension_{x}'] = (selector, 'value')
+            selector.value = 0
+
+    project.layout()
+    return selectors
+
+
+# -[ Synth builders ]----------------------------------------------------------------------------
+
+
+def effect_builder(fn):
+    effect_builder_fns.append(fn)
+    return fn
+
+
+@effect_builder
+def empty_effect(project, random, p):
+    return project.new_module(m.MetaModule)
+
+
+@effect_builder
+def compressor(project, random, p):
+    mod = project.new_module(
+        m.Compressor,
+    )
+    randomize_controllers(mod, random, skip={
+        'sidechain_input',
+    })
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'threshold',
+        'slope_pct',
+        'attack_ms',
+        'release_ms',
+    })
+    return mod
+
+
+@effect_builder
+def delay(project, random, p):
+    mod = project.new_module(
+        m.Delay,
+    )
+    randomize_controllers(mod, random, include={'delay_units'})
+    randomize_controllers(mod, random, skip={'delay_units'})
+    possibly_attach_parasite(project, random, p, mod, {
+        'dry',
+        'wet',
+        'delay_l',
+        'delay_r',
+        'volume_l',
+        'volume_r',
+    })
+    return mod
+
+
+@effect_builder
+def distortion(project, random, p):
+    mod = project.new_module(
+        m.Distortion,
+    )
+    randomize_controllers(mod, random, skip={
+        'volume',
+    })
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'power',
+        'bit_depth',
+        'freq_hz',
+        'noise',
+    })
+    return mod
+
+
+@effect_builder
+def echo(project, random, p):
+    mod = project.new_module(
+        m.Echo,
+        dry=0,
+    )
+    randomize_controllers(mod, random, include={'delay_units'})
+    randomize_controllers(mod, random, skip={'delay_units'})
+    possibly_attach_parasite(project, random, p, mod, {
+        'dry',
+        'wet',
+        'feedback',
+        'delay',
+    })
+    return mod
+
+
+@effect_builder
+def eq(project, random, p):
+    mod = project.new_module(
+        m.Eq,
+    )
+    randomize_controllers(mod, random)
+    possibly_attach_parasite(project, random, p, mod, {
+        'low',
+        'middle',
+        'high',
+    })
+    return mod
+
+
+# TODO: filter
+# TODO: filter pro
+
+
+@effect_builder
+def flanger(project, random, p):
+    mod = project.new_module(
+        m.Flanger,
+    )
+    randomize_controllers(mod, random, include={'lfo_freq_unit'})
+    randomize_controllers(mod, random, skip={'lfo_freq_unit'})
+    possibly_attach_parasite(project, random, p, mod, {
+        'dry',
+        'wet',
+        'feedback',
+        'delay',
+        'response',
+        'lfo_freq',
+        'lfo_amp',
+    })
+    return mod
+
+
+@effect_builder
+def lfo(project, random, p):
+    mod = project.new_module(
+        m.Lfo,
+    )
+    randomize_controllers(mod, random, include={'frequency_unit'})
+    randomize_controllers(mod, random, skip={
+        'volume',
+        'frequency_unit',
+        'generator',
+    })
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'amplitude',
+        'freq',
+        'duty_cycle',
+    })
+    return mod
+
+
+@effect_builder
+def loop(project, random, p):
+    mod = project.new_module(
+        m.Loop,
+    )
+    randomize_controllers(mod, random, skip={
+        'volume',
+    })
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'delay',
+        'repeats',
+        'mode',
+    })
+    return mod
+
+
+@effect_builder
+def pitch_shifter(project, random, p):
+    mod = project.new_module(
+        m.PitchShifter,
+    )
+    randomize_controllers(mod, random, skip={
+        'volume',
+    })
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'pitch',
+        'pitch_scale',
+        'feedback',
+        'grain_size',
+    })
+    return mod
+
+
+@effect_builder
+def reverb(project, random, p):
+    mod = project.new_module(
+        m.Reverb,
+    )
+    randomize_controllers(mod, random, skip={
+        'freeze',
+    })
+    possibly_attach_parasite(project, random, p, mod, {
+        'dry',
+        'wet',
+        'feedback',
+        'damp',
+        'stereo_width',
+        'room_size',
+    })
+    return mod
+
+
+@effect_builder
+def vibrato(project, random, p):
+    mod = project.new_module(
+        m.Vibrato,
+    )
+    randomize_controllers(mod, random, include={'frequency_unit'})
+    randomize_controllers(mod, random, skip={
+        'volume',
+        'frequency_unit',
+    })
+    possibly_attach_parasite(project, random, p, mod, {
+        'volume',
+        'amplitude',
+        'freq',
+    })
+    return mod
+
+
+@effect_builder
+def vocal_filter(project, random, p):
+    mod = project.new_module(
+        m.VocalFilter,
+    )
+    randomize_controllers(mod, random, skip={
+        'volume',
+    })
+    possibly_attach_parasite(project, random, p, mod, {
+        'formant_width_hz',
+        'intensity',
+        'formants',
+        'vowel',
+    })
+    return mod
+
+
+# TODO: Waveshaper of various kinds
+
+
+# -[ Utilities ]----------------------------------------------------------------------------
+
+
+def possibly_attach_parasite(project, random, p, host, choices):
+    if random.randint(0, 100) < p.global_parasites:
+        print('  ^ parasite!')
+        choices = sorted(list(choices))
+        choice = random.choice(choices)
+        ctlnum = host.controllers[choice].number
+        attach_parasite(project, random, host, ctlnum)
+
+
+def attach_parasite(project, random, host, ctlnum):
+    parasite = project.new_module(
+        m.Lfo,
+        generator=True,
+    )
+    randomize_controllers(parasite, random, include={'frequency_unit'})
+    randomize_controllers(parasite, random, include={'freq'}, skip={'generator'})
+    ventricle = project.new_module(
+        m.Sound2Ctl,
+        sample_rate_hz=120,
+        smooth=32,
+        out_controller=ctlnum,
+    )
+    randomize_controllers(ventricle, random, include={'out_min', 'out_max', 'gain'})
+    parasite >> ventricle >> host
+
+
+def table_filter(project, curve, pos, n, amps, ctl):
+    dc = project.new_module(
+        m.Amplifier,
+        name=f'V {pos + 1}',
+        dc_offset=-128,
+    )
+    mod1 = m.MultiCtl.macro(
+        project,
+        (dc, 'dc_offset'),
+        name=f'F {pos + 1}',
+    )
+    if curve == 'linear':
+        def fn(x, pos=pos):
+            return int(max(0, min(32768, 32768 - 128 * abs(n * (x - (257 * pos) / n)))))
+    elif curve == 'parabolic':
+        def fn(x, pos=pos):
+            return int(max(0, min(32768, 32768 - (0.707 * (n * (x - (pos * (257 / n))))) ** 2)))
+    else:
+        def fn(x, pos=pos):
+            return 0
+    mod1.curve.set_via_fn(fn)
+    if pos == 0:  # wrap around from last to first
+        mod1.curve.values = [v + fn(x, pos=n) for x, v in enumerate(mod1.curve.values)]
+    def s2c():
+        return project.new_module(
+            m.Sound2Ctl,
+            name=f'smooth {pos + 1}',
+            sample_rate_hz=8000,
+            absolute=False,
+            out_controller=ctl,
+            smooth=256,
+        )
+    for dest in amps:
+        dc >> s2c() >> dest
+    return mod1
+
+
+def randomize_controllers(mod, random, skip=None, include=None):
+    if include is not None and skip is not None:
+        choices = set(mod.controllers) - set(skip)
+        choices.update(include)
+    elif include is not None:
+        choices = set(include)
+    elif skip is not None:
+        choices = set(mod.controllers) - set(skip)
+    else:
+        choices = set(mod.controllers)
+    choices = sorted(list(choices))
+    for ctlname, ctl in mod.controllers.items():
+        if not ctl.attached(mod):
+            choices.remove(ctlname)
+    count = random.randint(len(choices) and 1, len(choices))
+
+    def munge(ctl_name):
+        ctl = mod.controllers[ctl_name]
+        t = ctl.value_type
+        if isinstance(t, DependentRange):
+            t = t.parent(mod)
+        if isinstance(t, Range):
+            value = random.randint(t.min, t.max)
+        elif t is bool:
+            value = random.choice([True, False])
+        else:
+            value = random.choice(list(t))
+        setattr(mod, ctl_name, value)
+
+    if include is not None:
+        for ctl_name in include:
+            choices.remove(ctl_name)
+            munge(ctl_name)
+    for _ in range(count):
+        if choices:
+            ctl_name = random.choice(choices)
+            choices.remove(ctl_name)
+            munge(ctl_name)
+        else:
+            break
