@@ -1,0 +1,59 @@
+"""ExpLFOsive - Exponential LFOs for SunVox"""
+
+from rv.api import m, Project
+
+
+# -----------------------------------------------------------------------------
+
+
+def set_parameters(p, P):
+    p.lfo_count = P.Integer(2, range=(2, 16), label='LFO Count')
+
+
+# -----------------------------------------------------------------------------
+
+
+def build_project(p, c, project: Project):
+    project.name = f'Queries ExpLFOsive^{p.lfo_count}'
+
+    note_in = project.new_module(m.MultiSynth, name='note in')
+
+    multictls = {}
+    for name, default in dict(
+        volume=0x4000,
+        amplitude=0x8000,
+        freq=0x8000,
+        waveform=0,
+        set_phase=0,
+        frequency_unit=0,
+        duty_cycle=0x4000,
+    ).items():
+        multictls[name] = project.new_module(
+            m.MultiCtl, name=name, value=default)
+
+    lfos = []
+    for lfo_index in range(p.lfo_count):
+        lfo = project.new_module(m.Lfo, channels=m.Lfo.Channels.mono)
+        note_in >> lfo
+        lfo << multictls.values()
+        if lfos:
+            # Connect previous LFO to this one.
+            lfos[-1] >> lfo
+        else:
+            # Make the first LFO a generator.
+            lfo.generator = True
+        lfos.append(lfo)
+
+    project.output << lfos[-1]
+
+    for key, multictl in multictls.items():
+        c.all[key] = (multictl, 'value')
+        for mapping in multictl.mappings.values:
+            mapping.controller = m.Lfo.controllers[key].number
+
+    for idx, lfo in enumerate(lfos):
+        lfo_c = c[f'lfo_{idx}']
+        for name in multictls:
+            lfo_c[name] = (lfo, name)
+
+    project.layout()
