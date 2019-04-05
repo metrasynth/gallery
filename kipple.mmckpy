@@ -346,7 +346,7 @@ def build_project(p, c, project):
 
     @mutation('effect', p.p_amplifier)
     def amplifier(track):
-        generic_random_mod(track, m.Amplifier, {'dc_offset'})
+        generic_random_mod(track, m.Amplifier, {'dc_offset', 'gain'})
 
     @mutation('effect', p.p_compressor)
     def compressor(track):
