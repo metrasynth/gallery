@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from ctypes import POINTER, c_uint32, c_int16, c_float, Structure, c_ubyte, c_ushort
-from typing import Optional
 
 import js
 
@@ -80,16 +79,6 @@ from js import (
 )
 
 
-async def init_sunvox():
-    module = await svlib
-    return init_svlib(module)
-
-
-def init_svlib(module) -> SunVoxApi:
-    js.svlib = module
-    return SunVoxApi
-
-
 class sunvox_note(Structure):
     _fields_ = [
         # NN: 0 - nothing; 1..127 - note num; 128 - note off; 129, 130...
@@ -107,9 +96,26 @@ class sunvox_note(Structure):
 
 
 class SunVoxApi:
+
+    # Initialization of SunVox WASM
+    # =============================
+
+    @classmethod
+    async def init_sunvox(cls):
+        module = await svlib
+        return cls.init_svlib(module)
+
+    @staticmethod
+    def init_svlib(module) -> SunVoxApi:
+        js.svlib = module
+        return SunVoxApi
+
+    # SunVox API wrapper
+    # ==================
+
     @staticmethod
     def init(
-        config: Optional[bytes],
+        config: str | None,
         freq: int,
         channels: int,
         flags: int,
@@ -326,7 +332,7 @@ class SunVoxApi:
         """
         load SunVox project from the memory block.
         """
-        return sv_load_module_from_memory(slot, data, data_size)
+        return sv_load_from_memory(slot, data, data_size)
 
     @staticmethod
     def play(
@@ -517,7 +523,7 @@ class SunVoxApi:
         return sv_get_current_signal_level(slot, channel)
 
     @staticmethod
-    def get_song_name(slot: int) -> bytes:
+    def get_song_name(slot: int) -> str:
         return sv_get_song_name(slot)
 
     @staticmethod
@@ -573,8 +579,8 @@ class SunVoxApi:
     @staticmethod
     def new_module(
         slot: int,
-        type: bytes,
-        name: bytes,
+        type: str,
+        name: str,
         x: int,
         y: int,
         z: int,
@@ -663,7 +669,7 @@ class SunVoxApi:
     @staticmethod
     def find_module(
         slot: int,
-        name: bytes,
+        name: str,
     ) -> int:
         """
         find a module by name;
@@ -711,7 +717,7 @@ class SunVoxApi:
     def get_module_name(
         slot: int,
         mod_num: int,
-    ) -> bytes:
+    ) -> str:
         return sv_get_module_name(slot, mod_num)
 
     @staticmethod
@@ -823,7 +829,7 @@ class SunVoxApi:
         slot: int,
         mod_num: int,
         ctl_num: int,
-    ) -> bytes:
+    ) -> str:
         return sv_get_module_ctl_name(slot, mod_num, ctl_num)
 
     @staticmethod
@@ -850,7 +856,7 @@ class SunVoxApi:
     @staticmethod
     def find_pattern(
         slot: int,
-        name: bytes,
+        name: str,
     ) -> int:
         """
         find a pattern by name;
@@ -911,7 +917,7 @@ class SunVoxApi:
     def get_pattern_name(
         slot: int,
         pat_num: int,
-    ) -> bytes:
+    ) -> str:
         """
         get pattern information
 
@@ -1024,7 +1030,7 @@ class SunVoxApi:
     @staticmethod
     def get_log(
         size: int,
-    ) -> bytes:
+    ) -> str:
         """
         get the latest messages from the log
 

@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!--suppress PyUnresolvedReferences -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,26 +10,36 @@
     <script src="sunvox-js/lib/sunvox.js"></script>
     <script src="sunvox-js/lib/sunvox_lib_loader.js"></script>
     <script defer src="https://pyscript.net/alpha/pyscript.js"></script>
-    <!-- language=yaml -->
     <py-env>
+        - ./logutils-0.3.5-py3-none-any.whl
+        - ./hexdump-3.3-py3-none-any.whl
+        - ./radiant_voices-1.1.0-py3-none-any.whl
         - paths:
             - ./sunvoxjs.py
     </py-env>
 </head>
 <body>
-    <h1>PyScript ports of MetraSynth Gallery scripts</h1>
+    <h1>MetraSynth Lab: PyScript + SunVox + Radiant Voices</h1>
 
     <py-script id="main">
-import asyncio  # noqa
-from sunvoxjs import init_sunvox, SunVoxApi  # noqa
-sunvox: SunVoxApi
+from typing import Type
+
+import rv.api
+from rv.api import m
+from sunvoxjs import SunVoxApi
+
+sunvox: Type[SunVoxApi]
+
 async def main():
     global sunvox
-    sunvox = await init_sunvox()  # noqa
+    sunvox = await SunVoxApi.init_sunvox()
+    sunvox.init(None, 44100, 2, 0)
 
 pyscript.run_until_complete(main())
     </py-script>
 
-    <py-repl id="my-repl" auto-generate="true"></py-repl>
+    <div>
+        <py-repl id="my-repl" auto-generate="true"></py-repl>
+    </div>
 </body>
 </html>
