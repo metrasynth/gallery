@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetraSynth Gallery</title>
+    <link rel="stylesheet" href="https://pyscript.net/alpha/pyscript.css" />
+    <script src="sunvox-js/lib/sunvox.js"></script>
+    <script src="sunvox-js/lib/sunvox_lib_loader.js"></script>
+    <script defer src="https://pyscript.net/alpha/pyscript.js"></script>
+    <!-- language=yaml -->
+    <py-env>
+        - paths:
+            - ./sunvoxjs.py
+    </py-env>
+</head>
+<body>
+    <h1>PyScript ports of MetraSynth Gallery scripts</h1>
+
+    <py-script id="main">
+import asyncio  # noqa
+from sunvoxjs import init_sunvox, SunVoxApi  # noqa
+sunvox: SunVoxApi
+async def main():
+    global sunvox
+    sunvox = await init_sunvox()  # noqa
+
+pyscript.run_until_complete(main())
+    </py-script>
+
+    <py-repl id="my-repl" auto-generate="true"></py-repl>
+</body>
+</html>
