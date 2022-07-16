@@ -291,7 +291,7 @@ def build_project(p, c, project):
         # project.output << dc_blocker << final_amp << [t.tail for t in open_audio_tracks]
         project.output << [t.tail for t in open_audio_tracks]
         project.layout()
-        print(project.module_connections)
+        # print(project.module_connections)
         print(project.modules)
         generate_controllers()
 
