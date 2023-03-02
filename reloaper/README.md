@@ -4,8 +4,8 @@ What this app does:
 
 - Watches a SunVox song file for changes.
 - When a change is detected (not currently rendering):
-  - Renders the audio for the song and writes to a WAV.
-  - Renders the time map for the song and writes to a CSV.
+  - Renders the audio for the song to a WAV in memory.
+  - Renders the time map for the song to memory.
 - When a change is detected (currently rendering):
   - Enqueues a re-render to start after the current one finishes.
 - When a song and time map are both rendered:
